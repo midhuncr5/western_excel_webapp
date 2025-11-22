@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.env
+service_account.json
+*.p12
+*.key
+.DS_Store

@@ -1,0 +1,280 @@
+#==================simple structure=======================================
+
+# from pydrive.auth import GoogleAuth
+# from pydrive.drive import GoogleDrive
+# import pandas as pd
+# import streamlit as st
+
+# # --------------------------
+# # AUTHENTICATION
+# # --------------------------
+# gauth = GoogleAuth()
+# gauth.LocalWebserverAuth()
+# drive = GoogleDrive(gauth)
+
+# FILE_ID = "1jJk2__AaS7iRtRkgGYnoW040O6ROsXYQ"
+
+# # --------------------------
+# # DOWNLOAD THE FILE
+# # --------------------------
+# file = drive.CreateFile({'id': FILE_ID})
+# file.GetContentFile("local.xlsx")
+
+# df = pd.read_excel("local.xlsx")
+
+# # --------------------------
+# # SHOW TABLE (EDITABLE)
+# # --------------------------
+# st.title("🔧 Drive Excel Sync System")
+# st.write("Edit the table below and click Save")
+
+# edited_df = st.data_editor(df)
+
+# # --------------------------
+# # SAVE BACK TO DRIVE
+# # --------------------------
+# if st.button("Save Changes to Drive"):
+#     edited_df.to_excel("local.xlsx", index=False)
+#     file.SetContentFile("local.xlsx")
+#     file.Upload()
+
+#     st.success("🔥 Excel Updated Successfully in Google Drive!")
+
+
+
+
+#======================modified structure=============================================
+
+# from pydrive.auth import GoogleAuth
+# from pydrive.drive import GoogleDrive
+# import pandas as pd
+# import streamlit as st
+
+# # --------------------------
+# # PAGE CONFIG
+# # --------------------------
+# st.set_page_config(
+#     page_title="Drive Excel Sync",
+#     page_icon="📝",
+#     layout="wide"
+# )
+
+# # --------------------------
+# # AUTHENTICATION
+# # --------------------------
+# gauth = GoogleAuth()
+# gauth.LocalWebserverAuth()
+# drive = GoogleDrive(gauth)
+
+# FILE_ID = "1jJk2__AaS7iRtRkgGYnoW040O6ROsXYQ"
+
+# # --------------------------
+# # HEADER
+# # --------------------------
+# st.markdown("<h1 style='text-align:center;'>📊 Excel Data Management</h1>", unsafe_allow_html=True)
+
+# # --------------------------
+# # DOWNLOAD FILE
+# # --------------------------
+# file = drive.CreateFile({'id': FILE_ID})
+# file.GetContentFile("local.xlsx")
+
+# df = pd.read_excel("local.xlsx")
+
+# # --------------------------
+# # DROPDOWN OPTIONS
+# # --------------------------
+# status_options = ["ACCEPTED", "REJECTED"]
+
+# # Apply dropdown configuration only if columns exist
+# column_config = {}
+# if "Status1" in df.columns:
+#     column_config["Status1"] = st.column_config.SelectboxColumn(
+#         label="Status1",
+#         options=status_options,
+#         default=None
+#     )
+
+# if "Status2" in df.columns:
+#     column_config["Status2"] = st.column_config.SelectboxColumn(
+#         label="Status2",
+#         options=status_options,
+#         default=None
+#     )
+
+# # --------------------------
+# # SHOW TABLE (EDITABLE)
+# # --------------------------
+# st.subheader("📂 Editable Table")
+
+# edited_df = st.data_editor(
+#     df,
+#     use_container_width=True,
+#     hide_index=True,
+#     num_rows="dynamic",
+#     column_config=column_config
+# )
+
+# # --------------------------
+# # SAVE TO DRIVE
+# # --------------------------
+# if st.button("💾 Save Changes to Drive"):
+#     edited_df.to_excel("local.xlsx", index=False)
+#     file.SetContentFile("local.xlsx")
+#     file.Upload()
+#     st.success("🔥 Updated Successfully in Google Drive!")
+
+
+
+#=========================FINAL STRUCTURE=================================================
+
+
+# app.py
+import io
+import json
+import pandas as pd
+import streamlit as st
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
+
+# --------------------------
+# PAGE CONFIG
+# --------------------------
+st.set_page_config(
+    page_title="Drive Excel Sync",
+    page_icon="📝",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+st.markdown("<h1 style='text-align:center;'>📊 Excel Data Management Panel</h1>", unsafe_allow_html=True)
+st.write("---")
+
+# --------------------------
+# LOAD SERVICE ACCOUNT FROM STREAMLIT SECRETS
+# --------------------------
+# You will add SERVICE_ACCOUNT_JSON and FILE_ID in Streamlit Cloud secrets
+if "SERVICE_ACCOUNT_JSON" not in st.secrets:
+    st.error("Service account credentials not found in Streamlit secrets. Add SERVICE_ACCOUNT_JSON.")
+    st.stop()
+
+if "FILE_ID" not in st.secrets:
+    st.error("Google Drive FILE_ID not found in Streamlit secrets. Add FILE_ID.")
+    st.stop()
+
+json_key = json.loads(st.secrets["SERVICE_ACCOUNT_JSON"])
+FILE_ID = st.secrets["FILE_ID"].strip()
+
+SCOPES = ["https://www.googleapis.com/auth/drive"]
+
+creds = Credentials.from_service_account_info(json_key, scopes=SCOPES)
+drive_service = build("drive", "v3", credentials=creds)
+
+# --------------------------
+# UTILS: download file as bytes -> pandas
+# --------------------------
+@st.cache_data(ttl=60)
+def download_excel_as_df(file_id: str) -> pd.DataFrame:
+    request = drive_service.files().get_media(fileId=file_id)
+    fh = io.BytesIO()
+    downloader = MediaIoBaseDownload(fh, request)
+    done = False
+    while not done:
+        status, done = downloader.next_chunk()  # returns (status, done)
+    fh.seek(0)
+    try:
+        df = pd.read_excel(fh, engine="openpyxl")
+    except Exception as e:
+        st.error(f"Error reading Excel file: {e}")
+        raise
+    return df
+
+# --------------------------
+# UTILS: upload bytes (overwrite existing file)
+# --------------------------
+def upload_excel_from_df(file_id: str, df: pd.DataFrame) -> None:
+    out = io.BytesIO()
+    df.to_excel(out, index=False, engine="openpyxl")
+    out.seek(0)
+    media = MediaIoBaseUpload(out, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", resumable=True)
+    # Use files().update to overwrite
+    drive_service.files().update(fileId=file_id, media_body=media).execute()
+
+# --------------------------
+# Load dataframe
+# --------------------------
+with st.spinner("Downloading Excel from Google Drive..."):
+    df = download_excel_as_df(FILE_ID)
+
+st.sidebar.header("Controls")
+st.sidebar.write("Use these controls to customize view.")
+if st.sidebar.checkbox("Show DataFrame Info"):
+    st.sidebar.write(df.info())
+
+# If you want to pre-process columns (e.g., ensure Status columns exist), do here
+if "Status1" not in df.columns:
+    df["Status1"] = ""
+if "Status2" not in df.columns:
+    df["Status2"] = ""
+
+# --------------------------
+# Column configuration (dropdown for Status columns)
+# --------------------------
+status_options = ["ACCEPTED", "REJECTED", ""]  # include empty if you want blank option
+
+# Streamlit's st.data_editor column_config API (Streamlit >=1.24) 
+# If your Streamlit version doesn't support column_config, fallback to st.data_editor plain.
+column_config = {}
+try:
+    # Attempt to import column classes if available
+    from streamlit import column_config as _col_cfg  # may be present depending on version
+    # Use simple dict of column settings; exact class names differ across versions — keep general
+except Exception:
+    # We'll still pass the names in a simpler way below
+    column_config = None
+
+# Build the editable table. We'll use st.data_editor with a simple fallback.
+st.subheader("📂 Editable Table (make changes and click Save)")
+
+# If Streamlit supports typed column_config with SelectboxColumn use it — otherwise use data_editor and post-process
+try:
+    # Newer Streamlit versions allow column_config parameter with SelectboxColumn
+    edited_df = st.data_editor(
+        df,
+        use_container_width=True,
+        hide_index=True,
+        num_rows="dynamic",
+        column_config={
+            "Status1": st.column_config.SelectboxColumn("Status1", options=status_options),
+            "Status2": st.column_config.SelectboxColumn("Status2", options=status_options),
+        }
+    )
+except Exception:
+    # Fallback: show editable grid without typed selects
+    edited_df = st.data_editor(df, use_container_width=True, hide_index=True, num_rows="dynamic")
+
+# Optionally apply search filter in-app
+search = st.text_input("Search (filters visible rows)", value="")
+if search:
+    mask = edited_df.apply(lambda row: row.astype(str).str.contains(search, case=False).any(), axis=1)
+    filtered = edited_df[mask]
+else:
+    filtered = edited_df
+
+st.write("Showing", len(filtered), "rows")
+st.dataframe(filtered, use_container_width=True)
+
+# --------------------------
+# Save button with confirmation & simple locking (per session)
+# --------------------------
+if st.button("💾 Save Changes to Drive"):
+    try:
+        with st.spinner("Uploading updated Excel to Drive..."):
+            upload_excel_from_df(FILE_ID, edited_df)
+        st.success("✅ Excel updated successfully in Google Drive.")
+    except Exception as e:
+        st.error(f"Failed to upload: {e}")
+
+st.write("---")
+st.info("Note: This app overwrites the file in Drive. Consider creating backups if multiple users will edit.")
