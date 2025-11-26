@@ -356,14 +356,30 @@ def download_excel_as_df(file_id: str) -> pd.DataFrame:
 # --------------------------
 # UTILS: upload Excel to Drive (overwrite)
 # --------------------------
+# def upload_excel_from_df(file_id: str, df: pd.DataFrame) -> None:
+#     out = io.BytesIO()
+#     df.to_excel(out, index=False, engine="openpyxl")
+#     out.seek(0)
+#     media = MediaIoBaseUpload(out,
+#                               mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+#                               resumable=True)
+#     drive_service.files().update(fileId=file_id, media_body=media).execute()
+
 def upload_excel_from_df(file_id: str, df: pd.DataFrame) -> None:
     out = io.BytesIO()
     df.to_excel(out, index=False, engine="openpyxl")
     out.seek(0)
-    media = MediaIoBaseUpload(out,
-                              mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                              resumable=True)
-    drive_service.files().update(fileId=file_id, media_body=media).execute()
+    media = MediaIoBaseUpload(
+        out,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        resumable=True
+    )
+    drive_service.files().update(
+        fileId=file_id,
+        media_body=media,
+        supportsAllDrives=True
+    ).execute()
+
 
 # --------------------------
 # Load dataframe
