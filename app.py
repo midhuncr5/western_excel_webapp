@@ -130,6 +130,157 @@
 
 
 # app.py
+# import io
+# import json
+# import pandas as pd
+# import streamlit as st
+# from google.oauth2.service_account import Credentials
+# from googleapiclient.discovery import build
+# from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
+
+# # --------------------------
+# # PAGE CONFIG
+# # --------------------------
+# st.set_page_config(
+#     page_title="Drive Excel Sync",
+#     page_icon="📝",
+#     layout="wide",
+#     initial_sidebar_state="expanded"
+# )
+
+# st.markdown("<h1 style='text-align:center;'>📊 Excel Data Management Panel</h1>", unsafe_allow_html=True)
+# st.write("---")
+
+# # --------------------------
+# # LOAD SERVICE ACCOUNT FROM STREAMLIT SECRETS
+# # --------------------------
+# # You will add SERVICE_ACCOUNT_JSON and FILE_ID in Streamlit Cloud secrets
+# if "SERVICE_ACCOUNT_JSON" not in st.secrets:
+#     st.error("Service account credentials not found in Streamlit secrets. Add SERVICE_ACCOUNT_JSON.")
+#     st.stop()
+
+# if "FILE_ID" not in st.secrets:
+#     st.error("Google Drive FILE_ID not found in Streamlit secrets. Add FILE_ID.")
+#     st.stop()
+
+# json_key = json.loads(st.secrets["SERVICE_ACCOUNT_JSON"])
+# FILE_ID = st.secrets["FILE_ID"].strip()
+
+# SCOPES = ["https://www.googleapis.com/auth/drive"]
+
+# creds = Credentials.from_service_account_info(json_key, scopes=SCOPES)
+# drive_service = build("drive", "v3", credentials=creds)
+
+# # --------------------------
+# # UTILS: download file as bytes -> pandas
+# # --------------------------
+# @st.cache_data(ttl=60)
+# def download_excel_as_df(file_id: str) -> pd.DataFrame:
+#     request = drive_service.files().get_media(fileId=file_id)
+#     fh = io.BytesIO()
+#     downloader = MediaIoBaseDownload(fh, request)
+#     done = False
+#     while not done:
+#         status, done = downloader.next_chunk()  # returns (status, done)
+#     fh.seek(0)
+#     try:
+#         df = pd.read_excel(fh, engine="openpyxl")
+#     except Exception as e:
+#         st.error(f"Error reading Excel file: {e}")
+#         raise
+#     return df
+
+# # --------------------------
+# # UTILS: upload bytes (overwrite existing file)
+# # --------------------------
+# def upload_excel_from_df(file_id: str, df: pd.DataFrame) -> None:
+#     out = io.BytesIO()
+#     df.to_excel(out, index=False, engine="openpyxl")
+#     out.seek(0)
+#     media = MediaIoBaseUpload(out, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", resumable=True)
+#     # Use files().update to overwrite
+#     drive_service.files().update(fileId=file_id, media_body=media).execute()
+
+# # --------------------------
+# # Load dataframe
+# # --------------------------
+# with st.spinner("Downloading Excel from Google Drive..."):
+#     df = download_excel_as_df(FILE_ID)
+
+# st.sidebar.header("Controls")
+# st.sidebar.write("Use these controls to customize view.")
+# if st.sidebar.checkbox("Show DataFrame Info"):
+#     st.sidebar.write(df.info())
+
+# # If you want to pre-process columns (e.g., ensure Status columns exist), do here
+# if "Status1" not in df.columns:
+#     df["Status1"] = ""
+# if "Status2" not in df.columns:
+#     df["Status2"] = ""
+
+# # --------------------------
+# # Column configuration (dropdown for Status columns)
+# # --------------------------
+# status_options = ["ACCEPTED", "REJECTED", ""]  # include empty if you want blank option
+
+# # Streamlit's st.data_editor column_config API (Streamlit >=1.24) 
+# # If your Streamlit version doesn't support column_config, fallback to st.data_editor plain.
+# column_config = {}
+# try:
+#     # Attempt to import column classes if available
+#     from streamlit import column_config as _col_cfg  # may be present depending on version
+#     # Use simple dict of column settings; exact class names differ across versions — keep general
+# except Exception:
+#     # We'll still pass the names in a simpler way below
+#     column_config = None
+
+# # Build the editable table. We'll use st.data_editor with a simple fallback.
+# st.subheader("📂 Editable Table (make changes and click Save)")
+
+# # If Streamlit supports typed column_config with SelectboxColumn use it — otherwise use data_editor and post-process
+# try:
+#     # Newer Streamlit versions allow column_config parameter with SelectboxColumn
+#     edited_df = st.data_editor(
+#         df,
+#         use_container_width=True,
+#         hide_index=True,
+#         num_rows="dynamic",
+#         column_config={
+#             "Status1": st.column_config.SelectboxColumn("Status1", options=status_options),
+#             "Status2": st.column_config.SelectboxColumn("Status2", options=status_options),
+#         }
+#     )
+# except Exception:
+#     # Fallback: show editable grid without typed selects
+#     edited_df = st.data_editor(df, use_container_width=True, hide_index=True, num_rows="dynamic")
+
+# # Optionally apply search filter in-app
+# search = st.text_input("Search (filters visible rows)", value="")
+# if search:
+#     mask = edited_df.apply(lambda row: row.astype(str).str.contains(search, case=False).any(), axis=1)
+#     filtered = edited_df[mask]
+# else:
+#     filtered = edited_df
+
+# st.write("Showing", len(filtered), "rows")
+# st.dataframe(filtered, use_container_width=True)
+
+# # --------------------------
+# # Save button with confirmation & simple locking (per session)
+# # --------------------------
+# if st.button("💾 Save Changes to Drive"):
+#     try:
+#         with st.spinner("Uploading updated Excel to Drive..."):
+#             upload_excel_from_df(FILE_ID, edited_df)
+#         st.success("✅ Excel updated successfully in Google Drive.")
+#     except Exception as e:
+#         st.error(f"Failed to upload: {e}")
+
+# st.write("---")
+# st.info("Note: This app overwrites the file in Drive. Consider creating backups if multiple users will edit.")
+
+
+
 import io
 import json
 import pandas as pd
@@ -137,6 +288,8 @@ import streamlit as st
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
+import gspread
+import altair as alt
 
 # --------------------------
 # PAGE CONFIG
@@ -154,7 +307,6 @@ st.write("---")
 # --------------------------
 # LOAD SERVICE ACCOUNT FROM STREAMLIT SECRETS
 # --------------------------
-# You will add SERVICE_ACCOUNT_JSON and FILE_ID in Streamlit Cloud secrets
 if "SERVICE_ACCOUNT_JSON" not in st.secrets:
     st.error("Service account credentials not found in Streamlit secrets. Add SERVICE_ACCOUNT_JSON.")
     st.stop()
@@ -163,16 +315,27 @@ if "FILE_ID" not in st.secrets:
     st.error("Google Drive FILE_ID not found in Streamlit secrets. Add FILE_ID.")
     st.stop()
 
+if "SHEET_FILE_ID" not in st.secrets:
+    st.error("Google Sheet SHEET_FILE_ID not found in Streamlit secrets. Add SHEET_FILE_ID.")
+    st.stop()
+
 json_key = json.loads(st.secrets["SERVICE_ACCOUNT_JSON"])
 FILE_ID = st.secrets["FILE_ID"].strip()
+SHEET_FILE_ID = st.secrets["SHEET_FILE_ID"].strip()
 
-SCOPES = ["https://www.googleapis.com/auth/drive"]
+SCOPES = ["https://www.googleapis.com/auth/drive",
+          "https://www.googleapis.com/auth/spreadsheets"]
 
 creds = Credentials.from_service_account_info(json_key, scopes=SCOPES)
-drive_service = build("drive", "v3", credentials=creds)
 
 # --------------------------
-# UTILS: download file as bytes -> pandas
+# Initialize Google Drive & Sheets clients
+# --------------------------
+drive_service = build("drive", "v3", credentials=creds)
+gspread_client = gspread.authorize(creds)  # ✅ Fixed: gspread client
+
+# --------------------------
+# UTILS: download Excel from Drive
 # --------------------------
 @st.cache_data(ttl=60)
 def download_excel_as_df(file_id: str) -> pd.DataFrame:
@@ -181,7 +344,7 @@ def download_excel_as_df(file_id: str) -> pd.DataFrame:
     downloader = MediaIoBaseDownload(fh, request)
     done = False
     while not done:
-        status, done = downloader.next_chunk()  # returns (status, done)
+        status, done = downloader.next_chunk()
     fh.seek(0)
     try:
         df = pd.read_excel(fh, engine="openpyxl")
@@ -191,14 +354,15 @@ def download_excel_as_df(file_id: str) -> pd.DataFrame:
     return df
 
 # --------------------------
-# UTILS: upload bytes (overwrite existing file)
+# UTILS: upload Excel to Drive (overwrite)
 # --------------------------
 def upload_excel_from_df(file_id: str, df: pd.DataFrame) -> None:
     out = io.BytesIO()
     df.to_excel(out, index=False, engine="openpyxl")
     out.seek(0)
-    media = MediaIoBaseUpload(out, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", resumable=True)
-    # Use files().update to overwrite
+    media = MediaIoBaseUpload(out,
+                              mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                              resumable=True)
     drive_service.files().update(fileId=file_id, media_body=media).execute()
 
 # --------------------------
@@ -212,49 +376,39 @@ st.sidebar.write("Use these controls to customize view.")
 if st.sidebar.checkbox("Show DataFrame Info"):
     st.sidebar.write(df.info())
 
-# If you want to pre-process columns (e.g., ensure Status columns exist), do here
-if "Status1" not in df.columns:
-    df["Status1"] = ""
-if "Status2" not in df.columns:
-    df["Status2"] = ""
+# Ensure approval columns exist
+for col in ["APPROVAL_1", "APPROVAL_2"]:
+    if col not in df.columns:
+        df[col] = ""
 
 # --------------------------
-# Column configuration (dropdown for Status columns)
+# Status options for dropdowns
 # --------------------------
-status_options = ["ACCEPTED", "REJECTED", ""]  # include empty if you want blank option
+status_options = ["ACCEPTED", "REJECTED", ""]  # include empty
 
-# Streamlit's st.data_editor column_config API (Streamlit >=1.24) 
-# If your Streamlit version doesn't support column_config, fallback to st.data_editor plain.
-column_config = {}
-try:
-    # Attempt to import column classes if available
-    from streamlit import column_config as _col_cfg  # may be present depending on version
-    # Use simple dict of column settings; exact class names differ across versions — keep general
-except Exception:
-    # We'll still pass the names in a simpler way below
-    column_config = None
-
-# Build the editable table. We'll use st.data_editor with a simple fallback.
+# --------------------------
+# Editable table
+# --------------------------
 st.subheader("📂 Editable Table (make changes and click Save)")
 
-# If Streamlit supports typed column_config with SelectboxColumn use it — otherwise use data_editor and post-process
 try:
-    # Newer Streamlit versions allow column_config parameter with SelectboxColumn
     edited_df = st.data_editor(
         df,
         use_container_width=True,
         hide_index=True,
         num_rows="dynamic",
         column_config={
-            "Status1": st.column_config.SelectboxColumn("Status1", options=status_options),
-            "Status2": st.column_config.SelectboxColumn("Status2", options=status_options),
+            "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
+            "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
         }
     )
 except Exception:
-    # Fallback: show editable grid without typed selects
+    # Fallback: editable without selectbox
     edited_df = st.data_editor(df, use_container_width=True, hide_index=True, num_rows="dynamic")
 
-# Optionally apply search filter in-app
+# --------------------------
+# Search/filter
+# --------------------------
 search = st.text_input("Search (filters visible rows)", value="")
 if search:
     mask = edited_df.apply(lambda row: row.astype(str).str.contains(search, case=False).any(), axis=1)
@@ -266,7 +420,7 @@ st.write("Showing", len(filtered), "rows")
 st.dataframe(filtered, use_container_width=True)
 
 # --------------------------
-# Save button with confirmation & simple locking (per session)
+# Save button
 # --------------------------
 if st.button("💾 Save Changes to Drive"):
     try:
@@ -276,5 +430,89 @@ if st.button("💾 Save Changes to Drive"):
     except Exception as e:
         st.error(f"Failed to upload: {e}")
 
+# --------------------------
+# Project-wise Highest Expense Categories (Google Sheet)
+# --------------------------
+st.write("---")
+st.subheader("💼 Project-wise Highest Expense Categories")
+
+try:
+    sh = gspread_client.open_by_key(SHEET_FILE_ID)
+    ws = sh.sheet1
+    expense_df = pd.DataFrame(ws.get_all_records())
+    st.success("Google Sheet loaded successfully!")
+except Exception as e:
+    st.error(f"Error loading Google Sheet: {e}")
+    st.stop()
+
+# --------------------------
+# Convert DATE column and filter current month
+# --------------------------
+if "DATE" not in expense_df.columns:
+    st.error("DATE column not found in sheet!")
+    st.stop()
+
+expense_df["DATE"] = pd.to_datetime(expense_df["DATE"], format="%d-%m-%Y", errors="coerce")
+expense_df = expense_df.dropna(subset=["DATE"])
+
+current_month = pd.Timestamp.now().month
+current_year = pd.Timestamp.now().year
+
+expense_df = expense_df[
+    (expense_df["DATE"].dt.month == current_month) &
+    (expense_df["DATE"].dt.year == current_year)
+]
+
+st.info(f"Showing expenses only for **{current_month}-{current_year}**")
+st.dataframe(expense_df.head(), use_container_width=True)
+
+# --------------------------
+# Required columns check
+# --------------------------
+required = ["PROJECT_NAME", "CATEGORY", "FINAL AMOUNT"]
+missing = [c for c in required if c not in expense_df.columns]
+if missing:
+    st.error(f"Missing columns: {missing}")
+    st.stop()
+
+expense_df["FINAL AMOUNT"] = pd.to_numeric(expense_df["FINAL AMOUNT"], errors="coerce").fillna(0)
+
+# --------------------------
+# Group and get top expense per project
+# --------------------------
+grp = (
+    expense_df.groupby(["PROJECT_NAME", "CATEGORY"])["FINAL AMOUNT"]
+    .sum()
+    .reset_index()
+)
+
+top_expenses = (
+    grp.sort_values("FINAL AMOUNT", ascending=False)
+       .groupby("PROJECT_NAME")
+       .head(1)
+       .reset_index(drop=True)
+)
+
+st.write("### 🏆 Highest Expense Category Per Project")
+st.dataframe(top_expenses, use_container_width=True)
+
+# --------------------------
+# Altair chart
+# --------------------------
+chart = (
+    alt.Chart(top_expenses)
+    .mark_bar()
+    .encode(
+        x=alt.X("PROJECT_NAME:N", title="Project"),
+        y=alt.Y("FINAL AMOUNT:Q", title="Total Expense"),
+        color="CATEGORY:N",
+        tooltip=["PROJECT_NAME", "CATEGORY", "FINAL AMOUNT"]
+    )
+    .properties(height=400)
+)
+
+st.altair_chart(chart, use_container_width=True)
+
 st.write("---")
 st.info("Note: This app overwrites the file in Drive. Consider creating backups if multiple users will edit.")
+
