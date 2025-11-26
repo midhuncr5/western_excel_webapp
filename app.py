@@ -416,8 +416,8 @@ if search:
 else:
     filtered = edited_df
 
-st.write("Showing", len(filtered), "rows")
-st.dataframe(filtered, use_container_width=True)
+# st.write("Showing", len(filtered), "rows")
+# st.dataframe(filtered, use_container_width=True)
 
 # --------------------------
 # Save button
