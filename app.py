@@ -458,17 +458,14 @@ if st.button("💾 Save Changes to Drive"):
         with st.spinner("Uploading updated Excel to Drive..."):
             upload_excel_from_df(FILE_ID, edited_df)
 
-            # ---- SIMPLE: update folder modified time ----
-            from datetime import datetime, timezone
-            now = datetime.now(timezone.utc).isoformat()
+            # 👉 SIMPLE one-line update to refresh parent folder (Pending_FOLDER)
             drive_service.files().update(
                 fileId=FOLDER_ID,
-                body={"modifiedTime": now},
+                body={},   # empty body = refresh metadata, updates folder timestamp
                 supportsAllDrives=True
             ).execute()
-            # ------------------------------------------------
 
-        st.success("✅ Excel & folder updated at the same time!")
+        st.success("✅ Excel and folder updated!")
     except Exception as e:
         st.error(f"Failed to upload: {e}")
 
