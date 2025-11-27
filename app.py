@@ -491,13 +491,31 @@ st.dataframe(expense_df.head(), use_container_width=True)
 # --------------------------
 # Required columns check
 # --------------------------
+# required = ["PROJECT_NAME", "CATEGORY", "FINAL AMOUNT"]
+# missing = [c for c in required if c not in expense_df.columns]
+# if missing:
+#     st.error(f"Missing columns: {missing}")
+#     st.stop()
+
+# expense_df["FINAL AMOUNT"] = pd.to_numeric(expense_df["FINAL AMOUNT"], errors="coerce").fillna(0)
+
+# Required columns check
 required = ["PROJECT_NAME", "CATEGORY", "FINAL AMOUNT"]
 missing = [c for c in required if c not in expense_df.columns]
 if missing:
     st.error(f"Missing columns: {missing}")
     st.stop()
 
+# NORMALIZE PROJECT NAME
+expense_df["PROJECT_NAME"] = (
+    expense_df["PROJECT_NAME"]
+    .astype(str)
+    .str.upper()
+    .str.strip()
+)
+
 expense_df["FINAL AMOUNT"] = pd.to_numeric(expense_df["FINAL AMOUNT"], errors="coerce").fillna(0)
+
 
 # --------------------------
 # Group and get top expense per project
