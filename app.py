@@ -444,30 +444,30 @@ else:
 
 # --------------------------
 # Save button
-# # --------------------------
-# if st.button("💾 Save Changes to Drive"):
-#     try:
-#         with st.spinner("Uploading updated Excel to Drive..."):
-#             upload_excel_from_df(FILE_ID, edited_df)
-#         st.success("✅ Excel updated successfully in Google Drive.")
-#     except Exception as e:
-#         st.error(f"Failed to upload: {e}")
-
+# --------------------------
 if st.button("💾 Save Changes to Drive"):
     try:
         with st.spinner("Uploading updated Excel to Drive..."):
             upload_excel_from_df(FILE_ID, edited_df)
-
-            # 👉 SIMPLE one-line update to refresh parent folder (Pending_FOLDER)
-            drive_service.files().update(
-                fileId=FOLDER_ID,
-                body={},   # empty body = refresh metadata, updates folder timestamp
-                supportsAllDrives=True
-            ).execute()
-
-        st.success("✅ Excel and folder updated!")
+        st.success("✅ Excel updated successfully in Google Drive.")
     except Exception as e:
         st.error(f"Failed to upload: {e}")
+
+# if st.button("💾 Save Changes to Drive"):
+#     try:
+#         with st.spinner("Uploading updated Excel to Drive..."):
+#             upload_excel_from_df(FILE_ID, edited_df)
+
+#             # 👉 SIMPLE one-line update to refresh parent folder (Pending_FOLDER)
+#             drive_service.files().update(
+#                 fileId=FOLDER_ID,
+#                 body={},   # empty body = refresh metadata, updates folder timestamp
+#                 supportsAllDrives=True
+#             ).execute()
+
+#         st.success("✅ Excel and folder updated!")
+#     except Exception as e:
+#         st.error(f"Failed to upload: {e}")
 
 
 # --------------------------
