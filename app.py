@@ -486,7 +486,8 @@ expense_df = expense_df[
 ]
 
 st.info(f"Showing expenses only for **{current_month}-{current_year}**")
-st.dataframe(expense_df.head(), use_container_width=True)
+# st.dataframe(expense_df.head(), use_container_width=True)
+st.dataframe(expense_df, use_container_width=True)
 
 # --------------------------
 # Required columns check
