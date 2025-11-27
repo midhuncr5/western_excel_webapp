@@ -322,6 +322,7 @@ if "SHEET_FILE_ID" not in st.secrets:
 json_key = json.loads(st.secrets["SERVICE_ACCOUNT_JSON"])
 FILE_ID = st.secrets["FILE_ID"].strip()
 SHEET_FILE_ID = st.secrets["SHEET_FILE_ID"].strip()
+FOLDER_ID = "1PnU8vSLG6w30kCfCb9Ho4lNqoCYwrShH"
 
 SCOPES = ["https://www.googleapis.com/auth/drive",
           "https://www.googleapis.com/auth/spreadsheets"]
@@ -443,14 +444,34 @@ else:
 
 # --------------------------
 # Save button
-# --------------------------
+# # --------------------------
+# if st.button("💾 Save Changes to Drive"):
+#     try:
+#         with st.spinner("Uploading updated Excel to Drive..."):
+#             upload_excel_from_df(FILE_ID, edited_df)
+#         st.success("✅ Excel updated successfully in Google Drive.")
+#     except Exception as e:
+#         st.error(f"Failed to upload: {e}")
+
 if st.button("💾 Save Changes to Drive"):
     try:
         with st.spinner("Uploading updated Excel to Drive..."):
             upload_excel_from_df(FILE_ID, edited_df)
-        st.success("✅ Excel updated successfully in Google Drive.")
+
+            # ---- SIMPLE: update folder modified time ----
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc).isoformat()
+            drive_service.files().update(
+                fileId=FOLDER_ID,
+                body={"modifiedTime": now},
+                supportsAllDrives=True
+            ).execute()
+            # ------------------------------------------------
+
+        st.success("✅ Excel & folder updated at the same time!")
     except Exception as e:
         st.error(f"Failed to upload: {e}")
+
 
 # --------------------------
 # Project-wise Highest Expense Categories (Google Sheet)
