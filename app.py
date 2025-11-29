@@ -306,46 +306,48 @@ st.set_page_config(
 st.markdown("""
 <style>
 
-    /* Remove horizontal scroll from main container */
-    .block-container {
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
+    /* Remove horizontal scroll from entire page */
+    .block-container, [data-testid="stHorizontalBlock"] {
         overflow-x: hidden !important;
     }
 
-    /* Data Editor Outer Container */
-    div[data-testid="stDataFrameResizable"] {
-        overflow-x: hidden !important;
-    }
-
-    /* Scroll wrapper */
-    div[data-testid="stHorizontalBlock"] {
-        overflow-x: hidden !important;
-    }
-
-    /* Table container */
+    /* Data editor root container */
     div[data-testid="stDataEditor"] {
-        width: 100% !important;
         overflow-x: hidden !important;
-        white-space: normal !important;
+        width: 100% !important;
     }
 
-    /* Table cells */
+    /* ------ FORCE SMALL COLUMN WIDTHS ------ */
+    div[data-testid="stDataEditor"] table {
+        table-layout: fixed !important;     /* Critical fix */
+        width: 100% !important;
+    }
+
+    /* Cells */
     div[data-testid="stDataEditor"] table td {
+        max-width: 80px !important;         /* Reduce as needed */
         white-space: normal !important;
         word-wrap: break-word !important;
-        max-width: 150px !important;   /* adjust here for tighter/wider columns */
+        overflow-wrap: break-word !important;
         overflow: visible !important;
+        padding: 4px !important;
     }
 
-    /* Table headers */
+    /* Headers */
     div[data-testid="stDataEditor"] table th {
+        max-width: 80px !important;
         white-space: normal !important;
-        max-width: 150px !important;
+        word-wrap: break-word !important;
+    }
+
+    /* Remove horizontal scrollbar globally */
+    ::-webkit-scrollbar:horizontal {
+        display: none !important;
     }
 
 </style>
 """, unsafe_allow_html=True)
+
 # ============================
 
 
