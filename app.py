@@ -306,42 +306,53 @@ st.set_page_config(
 st.markdown("""
 <style>
 
-    /* Remove horizontal scroll from entire page */
-    .block-container, [data-testid="stHorizontalBlock"] {
+    /* Disable horizontal scroll in ALL containers */
+    [data-testid="stDataFrameResizable"],
+    [data-testid="stDataEditor"],
+    [data-testid="stDataEditorContainer"],
+    .block-container,
+    div[data-testid="stHorizontalBlock"],
+    div[data-testid="stDataEditorViewport"] {
         overflow-x: hidden !important;
+        max-width: 100vw !important;
     }
 
-    /* Data editor root container */
-    div[data-testid="stDataEditor"] {
-        overflow-x: hidden !important;
+    /* The wrapper that forces horizontal scroll — shrink it */
+    div[data-testid="stDataEditorGrid"] {
         width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
     }
 
-    /* ------ FORCE SMALL COLUMN WIDTHS ------ */
+    /* The actual table */
     div[data-testid="stDataEditor"] table {
-        table-layout: fixed !important;     /* Critical fix */
+        table-layout: fixed !important;   /* CRITICAL */
         width: 100% !important;
-    }
-
-    /* Cells */
-    div[data-testid="stDataEditor"] table td {
-        max-width: 80px !important;         /* Reduce as needed */
-        white-space: normal !important;
-        word-wrap: break-word !important;
-        overflow-wrap: break-word !important;
-        overflow: visible !important;
-        padding: 4px !important;
+        max-width: 100% !important;
     }
 
     /* Headers */
     div[data-testid="stDataEditor"] table th {
-        max-width: 80px !important;
+        max-width: 60px !important;
         white-space: normal !important;
-        word-wrap: break-word !important;
+        word-break: break-word !important;
+        padding: 4px !important;
+        font-size: 13px !important;
+    }
+
+    /* Cells */
+    div[data-testid="stDataEditor"] table td {
+        max-width: 60px !important;
+        white-space: normal !important;
+        word-break: break-word !important;
+        overflow-wrap: break-word !important;
+        padding: 4px !important;
+        font-size: 13px !important;
     }
 
     /* Remove horizontal scrollbar globally */
     ::-webkit-scrollbar:horizontal {
+        height: 0px !important;
         display: none !important;
     }
 
