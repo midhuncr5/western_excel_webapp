@@ -359,49 +359,33 @@ st.set_page_config(
 # </style>
 # """, unsafe_allow_html=True)
 
+
+#=========================================================
 st.markdown("""
 <style>
-/* ============================
-   CONTAINER & TABLE FIXES
-   ============================ */
-
-/* Disable horizontal scroll in ALL containers */
-[data-testid="stDataFrameResizable"],
-[data-testid="stDataEditor"],
-[data-testid="stDataEditorContainer"],
-.block-container,
-div[data-testid="stHorizontalBlock"],
-div[data-testid="stDataEditorViewport"] {
+/* CONTAINER FIXES */
+[data-testid="stDataEditorContainer"], 
+.block-container {
     overflow-x: hidden !important;
     max-width: 100vw !important;
 }
 
-/* The wrapper that forces horizontal scroll — shrink it */
-div[data-testid="stDataEditorGrid"] {
-    width: 100% !important;
-    max-width: 100% !important;
-    overflow-x: hidden !important;
-}
-
-/* The actual table */
+/* TABLE FIXES */
 div[data-testid="stDataEditor"] table {
-    table-layout: fixed !important;   /* critical for word wrap */
+    table-layout: fixed !important;
     width: 100% !important;
-    max-width: 100% !important;
 }
 
-/* Headers */
+/* HEADERS */
 div[data-testid="stDataEditor"] table th {
-    max-width: 60px !important;
     white-space: normal !important;
     word-break: break-word !important;
     padding: 4px !important;
     font-size: 13px !important;
 }
 
-/* Cells */
+/* CELLS */
 div[data-testid="stDataEditor"] table td {
-    max-width: 60px !important;
     white-space: normal !important;
     word-break: break-word !important;
     overflow-wrap: break-word !important;
@@ -409,29 +393,14 @@ div[data-testid="stDataEditor"] table td {
     font-size: 13px !important;
 }
 
-/* Remove horizontal scrollbar globally */
-::-webkit-scrollbar:horizontal {
-    height: 0px !important;
-    display: none !important;
+/* ALL ROWS GRAY */
+div[data-testid="stDataEditor"] table tbody tr {
+    background-color: #d3d3d3 !important;  /* light gray for all rows */
 }
 
-/* ============================
-   ZEBRA STRIPING (ALTERNATING ROW COLORS)
-   ============================ */
-
-/* Even rows (light gray) */
-div[data-testid="stDataEditor"] table tbody tr:nth-child(even) {
-    background-color: #f2f2f2 !important;
-}
-
-/* Odd rows (white) */
-div[data-testid="stDataEditor"] table tbody tr:nth-child(odd) {
-    background-color: #ffffff !important;
-}
-
-/* Optional: Hover effect */
+/* Hover effect */
 div[data-testid="stDataEditor"] table tbody tr:hover {
-    background-color: #d1e7fd !important;
+    background-color: #a8c5ff !important;
 }
 </style>
 """, unsafe_allow_html=True)
