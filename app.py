@@ -573,7 +573,7 @@ df_show = df[DISPLAY_COLUMN_ORDER].copy()
 st.subheader("📂 Editable Table (Only Selected Columns Shown)")
 
 # Display styled DataFrame (read-only with even-row gray)
-st.dataframe(df_styled, use_container_width=True)
+st.dataframe(df_show, use_container_width=True)
 
 
 # --------------------------
