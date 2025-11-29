@@ -302,7 +302,7 @@ st.set_page_config(
 )
 # ============================
 # REMOVE HORIZONTAL SCROLL + AUTO-FIT TABLE COLUMNS
-============================
+# ============================
 st.markdown("""
 <style>
 
