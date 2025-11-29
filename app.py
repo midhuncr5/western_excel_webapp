@@ -514,21 +514,14 @@ DISPLAY_COLUMN_ORDER = [
 # Filter df to only display columns for editing
 df_display = df[DISPLAY_COLUMN_ORDER].copy()
 
-# --------------------------
-# Prepare row attributes for coloring
-# --------------------------
-row_attributes_list = []
-for idx in df_display.index:
-    if idx % 2 == 1:  # even rows (0-based)
-        row_attributes_list.append({"backgroundColor": "#d3d3d3"})
-    else:
-        row_attributes_list.append({})  # no color
 
+# --------------------------===============================================================
+# Define row background coloring for even rows
 # --------------------------
-# Editable table with row coloring
 # --------------------------
-st.subheader("📂 Editable Table (light grey even rows)")
-
+# Editable table
+# --------------------------
+st.subheader("📂 Editable Table (make changes and click Save)")
 edited_display_df = st.data_editor(
     df_display,
     use_container_width=True,
@@ -537,9 +530,9 @@ edited_display_df = st.data_editor(
     column_config={
         "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
         "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
-    },
-    row_attributes=row_attributes_list  # pass list of dicts here
+    }
 )
+
 # --------------------------
 # Search/filter
 # --------------------------
@@ -573,58 +566,6 @@ if st.button("💾 Save Changes to Drive"):
         st.success("✅ Excel and folder updated!")
     except Exception as e:
         st.error(f"Failed to upload: {e}")
-
-# # --------------------------===============================================================
-# # Define row background coloring for even rows
-# # --------------------------
-# # --------------------------
-# # Editable table
-# # --------------------------
-# st.subheader("📂 Editable Table (make changes and click Save)")
-# edited_display_df = st.data_editor(
-#     df_display,
-#     use_container_width=True,
-#     hide_index=True,
-#     num_rows="dynamic",
-#     column_config={
-#         "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
-#         "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
-#     }
-# )
-
-# # --------------------------
-# # Search/filter
-# # --------------------------
-# search = st.text_input("Search (filters visible rows)", value="")
-# if search:
-#     mask = edited_display_df.apply(lambda row: row.astype(str).str.contains(search, case=False).any(), axis=1)
-#     filtered = edited_display_df[mask]
-# else:
-#     filtered = edited_display_df
-
-# # --------------------------
-# # Save button
-# # --------------------------
-# if st.button("💾 Save Changes to Drive"):
-#     try:
-#         with st.spinner("Uploading updated Excel to Drive..."):
-#             # Merge edited columns back to original df
-#             for col in DISPLAY_COLUMN_ORDER:
-#                 df[col] = edited_display_df[col]
-
-#             # Upload full dataframe
-#             upload_excel_from_df(FILE_ID, df)
-
-#             # Refresh parent folder timestamp
-#             drive_service.files().update(
-#                 fileId=FOLDER_ID,
-#                 body={},
-#                 supportsAllDrives=True
-#             ).execute()
-
-#         st.success("✅ Excel and folder updated!")
-#     except Exception as e:
-#         st.error(f"Failed to upload: {e}")
 
 
 # --------------------------
