@@ -513,20 +513,12 @@ DISPLAY_COLUMN_ORDER = [
 
 # Filter df to only display columns for editing
 df_display = df[DISPLAY_COLUMN_ORDER].copy()
+# Function to assign row styles
+def row_styles(row):
+    # Apply light grey for even rows (row index 1,3,5,...)
+    color = "#d3d3d3" if row.name % 2 == 1 else ""
+    return [{"backgroundColor": color} for _ in row]
 
-# --------------------------
-# Pandas styling for even rows (preview only)
-# --------------------------
-def highlight_even_rows(row):
-    return ['background-color: #d3d3d3' if row.name % 2 == 1 else '' for _ in row]
-
-st.subheader("📊 Preview (light grey for even rows)")
-st.dataframe(df_display.style.apply(highlight_even_rows, axis=1), use_container_width=True)
-
-# --------------------------
-# Editable table
-# --------------------------
-st.subheader("📂 Editable Table (make changes below)")
 edited_display_df = st.data_editor(
     df_display,
     use_container_width=True,
@@ -535,7 +527,8 @@ edited_display_df = st.data_editor(
     column_config={
         "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
         "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
-    }
+    },
+    row_attributes=row_styles  # <-- apply row coloring here
 )
 
 # --------------------------
