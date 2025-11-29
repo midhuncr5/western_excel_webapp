@@ -317,21 +317,21 @@ st.markdown("""
         max-width: 100vw !important;
     }
 
-    /* The wrapper that forces horizontal scroll — shrink it */
+    /* Data editor grid wrapper */
     div[data-testid="stDataEditorGrid"] {
         width: 100% !important;
         max-width: 100% !important;
         overflow-x: hidden !important;
     }
 
-    /* The actual table */
+    /* Force table to shrink-fit all columns */
     div[data-testid="stDataEditor"] table {
-        table-layout: fixed !important;   /* CRITICAL */
+        table-layout: fixed !important;
         width: 100% !important;
         max-width: 100% !important;
     }
 
-    /* Headers */
+    /* Header cells */
     div[data-testid="stDataEditor"] table th {
         max-width: 60px !important;
         white-space: normal !important;
@@ -340,7 +340,7 @@ st.markdown("""
         font-size: 13px !important;
     }
 
-    /* Cells */
+    /* Body cells */
     div[data-testid="stDataEditor"] table td {
         max-width: 60px !important;
         white-space: normal !important;
@@ -348,6 +348,16 @@ st.markdown("""
         overflow-wrap: break-word !important;
         padding: 4px !important;
         font-size: 13px !important;
+    }
+
+    /* ❗ Highlight EVEN rows (striped table effect) */
+    div[data-testid="stDataEditor"] table tr:nth-child(even) td {
+        background-color: #f2f2f2 !important;  /* Light grey */
+    }
+
+    /* Optional: darker header */
+    div[data-testid="stDataEditor"] table thead tr th {
+        background-color: #e6e6e6 !important;
     }
 
     /* Remove horizontal scrollbar globally */
