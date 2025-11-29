@@ -306,27 +306,42 @@ st.set_page_config(
 st.markdown("""
 <style>
 
-    /* Disable horizontal scroll in the entire app */
+    /* Remove horizontal scroll from main container */
+    .block-container {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        overflow-x: hidden !important;
+    }
+
+    /* Data Editor Outer Container */
+    div[data-testid="stDataFrameResizable"] {
+        overflow-x: hidden !important;
+    }
+
+    /* Scroll wrapper */
     div[data-testid="stHorizontalBlock"] {
         overflow-x: hidden !important;
     }
 
-    /* Force data editor to take full width */
-    .stDataEditor {
+    /* Table container */
+    div[data-testid="stDataEditor"] {
         width: 100% !important;
+        overflow-x: hidden !important;
+        white-space: normal !important;
     }
 
-    /* Auto-fit cells and wrap text */
-    .stDataEditor table td {
+    /* Table cells */
+    div[data-testid="stDataEditor"] table td {
         white-space: normal !important;
         word-wrap: break-word !important;
-        max-width: 160px !important;
+        max-width: 150px !important;   /* adjust here for tighter/wider columns */
+        overflow: visible !important;
     }
 
-    /* Auto-fit column headers */
-    .stDataEditor table th {
+    /* Table headers */
+    div[data-testid="stDataEditor"] table th {
         white-space: normal !important;
-        max-width: 160px !important;
+        max-width: 150px !important;
     }
 
 </style>
