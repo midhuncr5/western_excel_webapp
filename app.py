@@ -415,66 +415,153 @@ for col in ["APPROVAL_1", "APPROVAL_2"]:
 # --------------------------
 status_options = ["ACCEPTED", "REJECTED", ""]  # include empty
 
+# # --------------------------
+# # Editable table
+# # --------------------------
+# st.subheader("📂 Editable Table (make changes and click Save)")
+
+# try:
+#     edited_df = st.data_editor(
+#         df,
+#         use_container_width=True,
+#         hide_index=True,
+#         num_rows="dynamic",
+#         column_config={
+#             "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
+#             "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
+#         }
+#     )
+# except Exception:
+#     # Fallback: editable without selectbox
+#     edited_df = st.data_editor(df, use_container_width=True, hide_index=True, num_rows="dynamic")
+
+# # --------------------------
+# # Search/filter
+# # --------------------------
+# search = st.text_input("Search (filters visible rows)", value="")
+# if search:
+#     mask = edited_df.apply(lambda row: row.astype(str).str.contains(search, case=False).any(), axis=1)
+#     filtered = edited_df[mask]
+# else:
+#     filtered = edited_df
+
+# # st.write("Showing", len(filtered), "rows")
+# # st.dataframe(filtered, use_container_width=True)
+
+# # # --------------------------
+# # # Save button
+# # # --------------------------
+# # if st.button("💾 Save Changes to Drive"):
+# #     try:
+# #         with st.spinner("Uploading updated Excel to Drive..."):
+# #             upload_excel_from_df(FILE_ID, edited_df)
+# #         st.success("✅ Excel updated successfully in Google Drive.")
+# #     except Exception as e:
+# #         st.error(f"Failed to upload: {e}")
+
+# if st.button("💾 Save Changes to Drive"):
+#     try:
+#         with st.spinner("Uploading updated Excel to Drive..."):
+#             upload_excel_from_df(FILE_ID, edited_df)
+
+#             # 👉 SIMPLE one-line update to refresh parent folder (Pending_FOLDER)
+#             drive_service.files().update(
+#                 fileId=FOLDER_ID,
+#                 body={},   # empty body = refresh metadata, updates folder timestamp
+#                 supportsAllDrives=True
+#             ).execute()
+
+#         st.success("✅ Excel and folder updated!")
+#     except Exception as e:
+#         st.error(f"Failed to upload: {e}")
+
+
+
+# --------------------------
+# Define columns to display & order
+# --------------------------
+DISPLAY_COLUMN_ORDER = [
+    "DATE",
+    "COMPANY ACCOUNT NO",
+    "COMPANY IFSC",
+    "COMPANY PAN",
+    "COMPANY GSTIN",
+    "CORPORATE ID",
+    "TRANSACTION TYPE",
+    "GST %",
+    "TDS %",
+    "GST (Yes/No)",
+    "TDS (Yes/No)",
+    "FROM_MAIL",
+    "STATUS_MATCHED_ESTIMATION",
+    "BENEFICIARY PAN",
+    "BENEFICIARY GSTIN",
+    "BENEFICIARY ACCOUNT NO",
+    "BENEFICIARY NAME",
+    "BASIC_AMOUNT",
+    "FINAL AMOUNT",
+    "PROJECT_NAME",
+    "CATEGORY",
+    "FIXED_AMOUNT",
+    "BALANCE_AMOUNT",
+    "ADJUSTMENT_AMOUNT",
+    "APPROVAL_1",
+    "APPROVAL_2",
+    "Remarks",
+    "NARRATION",
+]
+
+# Filter df to only display columns for editing
+df_display = df[DISPLAY_COLUMN_ORDER].copy()
+
 # --------------------------
 # Editable table
 # --------------------------
 st.subheader("📂 Editable Table (make changes and click Save)")
-
-try:
-    edited_df = st.data_editor(
-        df,
-        use_container_width=True,
-        hide_index=True,
-        num_rows="dynamic",
-        column_config={
-            "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
-            "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
-        }
-    )
-except Exception:
-    # Fallback: editable without selectbox
-    edited_df = st.data_editor(df, use_container_width=True, hide_index=True, num_rows="dynamic")
+edited_display_df = st.data_editor(
+    df_display,
+    use_container_width=True,
+    hide_index=True,
+    num_rows="dynamic",
+    column_config={
+        "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
+        "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
+    }
+)
 
 # --------------------------
 # Search/filter
 # --------------------------
 search = st.text_input("Search (filters visible rows)", value="")
 if search:
-    mask = edited_df.apply(lambda row: row.astype(str).str.contains(search, case=False).any(), axis=1)
-    filtered = edited_df[mask]
+    mask = edited_display_df.apply(lambda row: row.astype(str).str.contains(search, case=False).any(), axis=1)
+    filtered = edited_display_df[mask]
 else:
-    filtered = edited_df
+    filtered = edited_display_df
 
-# st.write("Showing", len(filtered), "rows")
-# st.dataframe(filtered, use_container_width=True)
-
-# # --------------------------
-# # Save button
-# # --------------------------
-# if st.button("💾 Save Changes to Drive"):
-#     try:
-#         with st.spinner("Uploading updated Excel to Drive..."):
-#             upload_excel_from_df(FILE_ID, edited_df)
-#         st.success("✅ Excel updated successfully in Google Drive.")
-#     except Exception as e:
-#         st.error(f"Failed to upload: {e}")
-
+# --------------------------
+# Save button
+# --------------------------
 if st.button("💾 Save Changes to Drive"):
     try:
         with st.spinner("Uploading updated Excel to Drive..."):
-            upload_excel_from_df(FILE_ID, edited_df)
+            # Merge edited columns back to original df
+            for col in DISPLAY_COLUMN_ORDER:
+                df[col] = edited_display_df[col]
 
-            # 👉 SIMPLE one-line update to refresh parent folder (Pending_FOLDER)
+            # Upload full dataframe
+            upload_excel_from_df(FILE_ID, df)
+
+            # Refresh parent folder timestamp
             drive_service.files().update(
                 fileId=FOLDER_ID,
-                body={},   # empty body = refresh metadata, updates folder timestamp
+                body={},
                 supportsAllDrives=True
             ).execute()
 
         st.success("✅ Excel and folder updated!")
     except Exception as e:
         st.error(f"Failed to upload: {e}")
-
 
 
 # --------------------------
