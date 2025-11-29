@@ -515,6 +515,15 @@ DISPLAY_COLUMN_ORDER = [
 df_display = df[DISPLAY_COLUMN_ORDER].copy()
 
 # --------------------------
+# Define row background coloring for even rows
+# --------------------------
+def row_color_callback(row):
+    if row.name % 2 == 1:  # even rows visually
+        return {col: "#d3d3d3" for col in row.index}  # light grey
+    else:
+        return {}
+
+# --------------------------
 # Editable table
 # --------------------------
 st.subheader("📂 Editable Table (make changes and click Save)")
@@ -526,8 +535,25 @@ edited_display_df = st.data_editor(
     column_config={
         "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
         "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
-    }
+    },
+    row_styles=row_color_callback  # apply even row coloring
 )
+
+
+# # --------------------------
+# # Editable table
+# # --------------------------
+# st.subheader("📂 Editable Table (make changes and click Save)")
+# edited_display_df = st.data_editor(
+#     df_display,
+#     use_container_width=True,
+#     hide_index=True,
+#     num_rows="dynamic",
+#     column_config={
+#         "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
+#         "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
+#     }
+# )
 
 # --------------------------
 # Search/filter
