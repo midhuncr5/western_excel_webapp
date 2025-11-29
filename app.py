@@ -513,11 +513,21 @@ DISPLAY_COLUMN_ORDER = [
 
 # Filter df to only display columns for editing
 df_display = df[DISPLAY_COLUMN_ORDER].copy()
-# Function to assign row styles
-def row_styles(row):
-    # Apply light grey for even rows (row index 1,3,5,...)
-    color = "#d3d3d3" if row.name % 2 == 1 else ""
-    return [{"backgroundColor": color} for _ in row]
+
+# --------------------------
+# Prepare row attributes for coloring
+# --------------------------
+row_attributes_list = []
+for idx in df_display.index:
+    if idx % 2 == 1:  # even rows (0-based)
+        row_attributes_list.append({"backgroundColor": "#d3d3d3"})
+    else:
+        row_attributes_list.append({})  # no color
+
+# --------------------------
+# Editable table with row coloring
+# --------------------------
+st.subheader("📂 Editable Table (light grey even rows)")
 
 edited_display_df = st.data_editor(
     df_display,
@@ -528,9 +538,8 @@ edited_display_df = st.data_editor(
         "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
         "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
     },
-    row_attributes=row_styles  # <-- apply row coloring here
+    row_attributes=row_attributes_list  # pass list of dicts here
 )
-
 # --------------------------
 # Search/filter
 # --------------------------
