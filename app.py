@@ -534,6 +534,9 @@ for col in ["APPROVAL_1", "APPROVAL_2"]:
 # --------------------------
 # DISPLAY-ONLY COLUMN ORDER
 # --------------------------
+# --------------------------
+# Only show selected columns for editing
+# --------------------------
 DISPLAY_COLUMN_ORDER = [
     "DATE",
     "COMPANY ACCOUNT NO",
@@ -565,39 +568,35 @@ DISPLAY_COLUMN_ORDER = [
     "NARRATION",
 ]
 
-# df_show ONLY for UI display (this does NOT affect saving)
 df_show = df[DISPLAY_COLUMN_ORDER].copy()
-
-
-
-st.subheader("📂 Editable Table (Only Selected Columns Shown)")
-
-# Display styled DataFrame (read-only with even-row gray)
-st.dataframe(df_show, use_container_width=True)
-
 
 # --------------------------
 # Status options
 # --------------------------
 status_options = ["ACCEPTED", "REJECTED", ""]
 
-
 # --------------------------
-# Editable Table (display only selected columns)
+# Editable table
 # --------------------------
-st.subheader("📂 Editable Table (Only Selected Columns Shown)")
-
 edited_visible_df = st.data_editor(
     df_show,
     use_container_width=True,
     hide_index=True,
     num_rows="dynamic",
     column_config={
-        "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
-        "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
+        "APPROVAL_1": st.column_config.SelectboxColumn(
+            "APPROVAL_1", options=status_options
+        ),
+        "APPROVAL_2": st.column_config.SelectboxColumn(
+            "APPROVAL_2", options=status_options
+        ),
+    },
+    # Enable row coloring
+    styling={
+        "striped": True,  # even-row gray
+        "stripe_color": "#f5f5f5"
     }
 )
-
 
 # --------------------------
 # Search / filter logic
@@ -612,22 +611,22 @@ if search:
 else:
     filtered = edited_visible_df
 
+st.write("Showing", len(filtered), "rows")
+st.dataframe(filtered, use_container_width=True)  # Display filtered results
 
 # --------------------------
 # Save button
 # --------------------------
 if st.button("💾 Save Changes to Drive"):
     try:
-        # Update ONLY values of these columns (NOT column order)
-        for col in DISPLAY_COLUMN_ORDER:
+        # Update only editable columns
+        for col in ["APPROVAL_1", "APPROVAL_2"]:
             df[col] = edited_visible_df[col]
 
-        # Save full df with original order
         with st.spinner("Uploading updated Excel to Drive..."):
             upload_excel_from_df(FILE_ID, df)
 
         st.success("✅ Excel updated successfully in Google Drive.")
-
     except Exception as e:
         st.error(f"Failed to upload: {e}")
 
