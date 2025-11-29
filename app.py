@@ -300,6 +300,39 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+# ============================
+# REMOVE HORIZONTAL SCROLL + AUTO-FIT TABLE COLUMNS
+# ============================
+st.markdown("""
+<style>
+
+    /* Disable horizontal scroll in the entire app */
+    div[data-testid="stHorizontalBlock"] {
+        overflow-x: hidden !important;
+    }
+
+    /* Force data editor to take full width */
+    .stDataEditor {
+        width: 100% !important;
+    }
+
+    /* Auto-fit cells and wrap text */
+    .stDataEditor table td {
+        white-space: normal !important;
+        word-wrap: break-word !important;
+        max-width: 160px !important;
+    }
+
+    /* Auto-fit column headers */
+    .stDataEditor table th {
+        white-space: normal !important;
+        max-width: 160px !important;
+    }
+
+</style>
+""", unsafe_allow_html=True)
+# ============================
+
 
 st.markdown("<h1 style='text-align:center;'>📊 Excel Data Management Panel</h1>", unsafe_allow_html=True)
 st.write("---")
