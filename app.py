@@ -303,71 +303,88 @@ st.set_page_config(
 # ============================
 # REMOVE HORIZONTAL SCROLL + AUTO-FIT TABLE COLUMNS
 # ============================
+# st.markdown("""
+# <style>
+
+#     /* Disable horizontal scroll in ALL containers */
+#     [data-testid="stDataFrameResizable"],
+#     [data-testid="stDataEditor"],
+#     [data-testid="stDataEditorContainer"],
+#     .block-container,
+#     div[data-testid="stHorizontalBlock"],
+#     div[data-testid="stDataEditorViewport"] {
+#         overflow-x: hidden !important;
+#         max-width: 100vw !important;
+#     }
+
+#     /* Data editor grid wrapper */
+#     div[data-testid="stDataEditorGrid"] {
+#         width: 100% !important;
+#         max-width: 100% !important;
+#         overflow-x: hidden !important;
+#     }
+
+#     /* Force table to shrink-fit all columns */
+#     div[data-testid="stDataEditor"] table {
+#         table-layout: fixed !important;
+#         width: 100% !important;
+#         max-width: 100% !important;
+#     }
+
+#     /* Header cells */
+#     div[data-testid="stDataEditor"] table th {
+#         max-width: 60px !important;
+#         white-space: normal !important;
+#         word-break: break-word !important;
+#         padding: 4px !important;
+#         font-size: 13px !important;
+#     }
+
+#     /* Body cells */
+#     div[data-testid="stDataEditor"] table td {
+#         max-width: 60px !important;
+#         white-space: normal !important;
+#         word-break: break-word !important;
+#         overflow-wrap: break-word !important;
+#         padding: 4px !important;
+#         font-size: 13px !important;
+#     }
+
+#     /* ❗ Highlight EVEN rows (striped table effect) */
+#     div[data-testid="stDataEditor"] table tr:nth-child(even) td {
+#         background-color: #f2f2f2 !important;  /* Light grey */
+#     }
+
+#     /* Optional: darker header */
+#     div[data-testid="stDataEditor"] table thead tr th {
+#         background-color: #e6e6e6 !important;
+#     }
+
+#     /* Remove horizontal scrollbar globally */
+#     ::-webkit-scrollbar:horizontal {
+#         height: 0px !important;
+#         display: none !important;
+#     }
+
+# </style>
+# """, unsafe_allow_html=True)
+
 st.markdown("""
 <style>
 
-    /* Disable horizontal scroll in ALL containers */
-    [data-testid="stDataFrameResizable"],
-    [data-testid="stDataEditor"],
-    [data-testid="stDataEditorContainer"],
-    .block-container,
-    div[data-testid="stHorizontalBlock"],
-    div[data-testid="stDataEditorViewport"] {
-        overflow-x: hidden !important;
-        max-width: 100vw !important;
+    /* Highlight even rows */
+    div[data-testid="stDataEditor"] .ag-center-cols-container .ag-row:nth-child(even) {
+        background-color: #f2f2f2 !important;
     }
 
-    /* Data editor grid wrapper */
-    div[data-testid="stDataEditorGrid"] {
-        width: 100% !important;
-        max-width: 100% !important;
-        overflow-x: hidden !important;
-    }
-
-    /* Force table to shrink-fit all columns */
-    div[data-testid="stDataEditor"] table {
-        table-layout: fixed !important;
-        width: 100% !important;
-        max-width: 100% !important;
-    }
-
-    /* Header cells */
-    div[data-testid="stDataEditor"] table th {
-        max-width: 60px !important;
-        white-space: normal !important;
-        word-break: break-word !important;
-        padding: 4px !important;
-        font-size: 13px !important;
-    }
-
-    /* Body cells */
-    div[data-testid="stDataEditor"] table td {
-        max-width: 60px !important;
-        white-space: normal !important;
-        word-break: break-word !important;
-        overflow-wrap: break-word !important;
-        padding: 4px !important;
-        font-size: 13px !important;
-    }
-
-    /* ❗ Highlight EVEN rows (striped table effect) */
-    div[data-testid="stDataEditor"] table tr:nth-child(even) td {
-        background-color: #f2f2f2 !important;  /* Light grey */
-    }
-
-    /* Optional: darker header */
-    div[data-testid="stDataEditor"] table thead tr th {
-        background-color: #e6e6e6 !important;
-    }
-
-    /* Remove horizontal scrollbar globally */
-    ::-webkit-scrollbar:horizontal {
-        height: 0px !important;
-        display: none !important;
+    /* Optional: highlight odd rows differently */
+    div[data-testid="stDataEditor"] .ag-center-cols-container .ag-row:nth-child(odd) {
+        background-color: #ffffff !important;
     }
 
 </style>
 """, unsafe_allow_html=True)
+
 
 # ============================
 
