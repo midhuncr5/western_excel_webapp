@@ -498,17 +498,17 @@ DISPLAY_COLUMN_ORDER = [
     "BENEFICIARY GSTIN",
     "BENEFICIARY ACCOUNT NO",
     "BENEFICIARY NAME",
-    "BASIC_AMOUNT",
     "FINAL AMOUNT",
     "PROJECT_NAME",
     "CATEGORY",
     "FIXED_AMOUNT",
     "BALANCE_AMOUNT",
     "ADJUSTMENT_AMOUNT",
+    "BASIC_AMOUNT",
     "APPROVAL_1",
     "APPROVAL_2",
-    "Remarks",
     "NARRATION",
+    "Remarks",
 ]
 
 # Filter df to only display columns for editing
