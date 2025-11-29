@@ -399,10 +399,10 @@ st.sidebar.write("Use these controls to customize view.")
 if st.sidebar.checkbox("Show DataFrame Info"):
     st.sidebar.write(df.info())
 
-# Ensure approval columns exist
-# for col in ["APPROVAL_1", "APPROVAL_2"]:
-#     if col not in df.columns:
-#         df[col] = ""
+Ensure approval columns exist
+for col in ["APPROVAL_1", "APPROVAL_2"]:
+    if col not in df.columns:
+        df[col] = ""
 for col in ["APPROVAL_1", "APPROVAL_2"]:
     if col not in df.columns:
         df[col] = ""
@@ -410,43 +410,43 @@ for col in ["APPROVAL_1", "APPROVAL_2"]:
         df[col] = df[col].astype(str).fillna("")  # Force string dtype and fill NaN
 
 
-# # --------------------------
-# # Status options for dropdowns
-# # --------------------------
-# status_options = ["ACCEPTED", "REJECTED", ""]  # include empty
+# --------------------------
+# Status options for dropdowns
+# --------------------------
+status_options = ["ACCEPTED", "REJECTED", ""]  # include empty
 
-# # --------------------------
-# # Editable table
-# # --------------------------
-# st.subheader("📂 Editable Table (make changes and click Save)")
+# --------------------------
+# Editable table
+# --------------------------
+st.subheader("📂 Editable Table (make changes and click Save)")
 
-# try:
-#     edited_df = st.data_editor(
-#         df,
-#         use_container_width=True,
-#         hide_index=True,
-#         num_rows="dynamic",
-#         column_config={
-#             "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
-#             "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
-#         }
-#     )
-# except Exception:
-#     # Fallback: editable without selectbox
-#     edited_df = st.data_editor(df, use_container_width=True, hide_index=True, num_rows="dynamic")
+try:
+    edited_df = st.data_editor(
+        df,
+        use_container_width=True,
+        hide_index=True,
+        num_rows="dynamic",
+        column_config={
+            "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
+            "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
+        }
+    )
+except Exception:
+    # Fallback: editable without selectbox
+    edited_df = st.data_editor(df, use_container_width=True, hide_index=True, num_rows="dynamic")
 
-# # --------------------------
-# # Search/filter
-# # --------------------------
-# search = st.text_input("Search (filters visible rows)", value="")
-# if search:
-#     mask = edited_df.apply(lambda row: row.astype(str).str.contains(search, case=False).any(), axis=1)
-#     filtered = edited_df[mask]
-# else:
-#     filtered = edited_df
+# --------------------------
+# Search/filter
+# --------------------------
+search = st.text_input("Search (filters visible rows)", value="")
+if search:
+    mask = edited_df.apply(lambda row: row.astype(str).str.contains(search, case=False).any(), axis=1)
+    filtered = edited_df[mask]
+else:
+    filtered = edited_df
 
-# # st.write("Showing", len(filtered), "rows")
-# # st.dataframe(filtered, use_container_width=True)
+# st.write("Showing", len(filtered), "rows")
+# st.dataframe(filtered, use_container_width=True)
 
 # # --------------------------
 # # Save button
@@ -459,120 +459,22 @@ for col in ["APPROVAL_1", "APPROVAL_2"]:
 #     except Exception as e:
 #         st.error(f"Failed to upload: {e}")
 
-# if st.button("💾 Save Changes to Drive"):
-#     try:
-#         with st.spinner("Uploading updated Excel to Drive..."):
-#             upload_excel_from_df(FILE_ID, edited_df)
-
-#             # 👉 SIMPLE one-line update to refresh parent folder (Pending_FOLDER)
-#             drive_service.files().update(
-#                 fileId=FOLDER_ID,
-#                 body={},   # empty body = refresh metadata, updates folder timestamp
-#                 supportsAllDrives=True
-#             ).execute()
-
-#         st.success("✅ Excel and folder updated!")
-#     except Exception as e:
-#         st.error(f"Failed to upload: {e}")
-
-# --------------------------
-# DISPLAY-ONLY COLUMN ORDER
-# --------------------------
-# --------------------------
-# Only show selected columns for editing
-# --------------------------
-DISPLAY_COLUMN_ORDER = [
-    "DATE",
-    "COMPANY ACCOUNT NO",
-    "COMPANY IFSC",
-    "COMPANY PAN",
-    "COMPANY GSTIN",
-    "CORPORATE ID",
-    "TRANSACTION TYPE",
-    "GST %",
-    "TDS %",
-    "GST (Yes/No)",
-    "TDS (Yes/No)",
-    "FROM_MAIL",
-    "STATUS_MATCHED_ESTIMATION",
-    "BENEFICIARY PAN",
-    "BENEFICIARY GSTIN",
-    "BENEFICIARY ACCOUNT NO",
-    "BENEFICIARY NAME",
-    "BASIC_AMOUNT",
-    "FINAL AMOUNT",
-    "PROJECT_NAME",
-    "CATEGORY",
-    "FIXED_AMOUNT",
-    "BALANCE_AMOUNT",
-    "ADJUSTMENT_AMOUNT",
-    "APPROVAL_1",
-    "APPROVAL_2",
-    "Remarks",
-    "NARRATION",
-]
-
-df_show = df[DISPLAY_COLUMN_ORDER].copy()
-
-# --------------------------
-# Status options
-# --------------------------
-status_options = ["ACCEPTED", "REJECTED", ""]
-
-# --------------------------
-# Editable table
-# --------------------------
-edited_visible_df = st.data_editor(
-    df_show,
-    use_container_width=True,
-    hide_index=True,
-    num_rows="dynamic",
-    column_config={
-        "APPROVAL_1": st.column_config.SelectboxColumn(
-            "APPROVAL_1", options=status_options
-        ),
-        "APPROVAL_2": st.column_config.SelectboxColumn(
-            "APPROVAL_2", options=status_options
-        ),
-    },
-    # Enable row coloring
-    styling={
-        "striped": True,  # even-row gray
-        "stripe_color": "#f5f5f5"
-    }
-)
-
-# --------------------------
-# Search / filter logic
-# --------------------------
-search = st.text_input("Search (filters visible rows)", value="")
-if search:
-    mask = edited_visible_df.apply(
-        lambda row: row.astype(str).str.contains(search, case=False).any(),
-        axis=1
-    )
-    filtered = edited_visible_df[mask]
-else:
-    filtered = edited_visible_df
-
-st.write("Showing", len(filtered), "rows")
-st.dataframe(filtered, use_container_width=True)  # Display filtered results
-
-# --------------------------
-# Save button
-# --------------------------
 if st.button("💾 Save Changes to Drive"):
     try:
-        # Update only editable columns
-        for col in ["APPROVAL_1", "APPROVAL_2"]:
-            df[col] = edited_visible_df[col]
-
         with st.spinner("Uploading updated Excel to Drive..."):
-            upload_excel_from_df(FILE_ID, df)
+            upload_excel_from_df(FILE_ID, edited_df)
 
-        st.success("✅ Excel updated successfully in Google Drive.")
+            # 👉 SIMPLE one-line update to refresh parent folder (Pending_FOLDER)
+            drive_service.files().update(
+                fileId=FOLDER_ID,
+                body={},   # empty body = refresh metadata, updates folder timestamp
+                supportsAllDrives=True
+            ).execute()
+
+        st.success("✅ Excel and folder updated!")
     except Exception as e:
         st.error(f"Failed to upload: {e}")
+
 
 
 # --------------------------
