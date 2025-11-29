@@ -399,7 +399,7 @@ st.sidebar.write("Use these controls to customize view.")
 if st.sidebar.checkbox("Show DataFrame Info"):
     st.sidebar.write(df.info())
 
-Ensure approval columns exist
+# Ensure approval columns exist
 for col in ["APPROVAL_1", "APPROVAL_2"]:
     if col not in df.columns:
         df[col] = ""
