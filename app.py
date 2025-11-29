@@ -534,21 +534,21 @@ DISPLAY_COLUMN_ORDER = [
     "TDS (Yes/No)",
     "FROM_MAIL",
     "STATUS_MATCHED_ESTIMATION",
-    "PROJECT_NAME",
-    "CATEGORY",
     "BENEFICIARY PAN",
     "BENEFICIARY GSTIN",
     "BENEFICIARY ACCOUNT NO",
     "BENEFICIARY NAME",
     "BASIC_AMOUNT",
     "FINAL AMOUNT",
-    "NARRATION",
+    "PROJECT_NAME",
+    "CATEGORY",
     "FIXED_AMOUNT",
     "BALANCE_AMOUNT",
     "ADJUSTMENT_AMOUNT",
     "APPROVAL_1",
     "APPROVAL_2",
-    "Remarks"
+    "Remarks",
+    "NARRATION",
 ]
 
 # df_show ONLY for UI display (this does NOT affect saving)
