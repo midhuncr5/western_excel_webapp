@@ -303,110 +303,64 @@ st.set_page_config(
 # ============================
 # REMOVE HORIZONTAL SCROLL + AUTO-FIT TABLE COLUMNS
 # ============================
-# st.markdown("""
-# <style>
-
-#     /* Disable horizontal scroll in ALL containers */
-#     [data-testid="stDataFrameResizable"],
-#     [data-testid="stDataEditor"],
-#     [data-testid="stDataEditorContainer"],
-#     .block-container,
-#     div[data-testid="stHorizontalBlock"],
-#     div[data-testid="stDataEditorViewport"] {
-#         overflow-x: hidden !important;
-#         max-width: 100vw !important;
-#     }
-
-#     /* The wrapper that forces horizontal scroll — shrink it */
-#     div[data-testid="stDataEditorGrid"] {
-#         width: 100% !important;
-#         max-width: 100% !important;
-#         overflow-x: hidden !important;
-#     }
-
-#     /* The actual table */
-#     div[data-testid="stDataEditor"] table {
-#         table-layout: fixed !important;   /* CRITICAL */
-#         width: 100% !important;
-#         max-width: 100% !important;
-#     }
-
-#     /* Headers */
-#     div[data-testid="stDataEditor"] table th {
-#         max-width: 60px !important;
-#         white-space: normal !important;
-#         word-break: break-word !important;
-#         padding: 4px !important;
-#         font-size: 13px !important;
-#     }
-
-#     /* Cells */
-#     div[data-testid="stDataEditor"] table td {
-#         max-width: 60px !important;
-#         white-space: normal !important;
-#         word-break: break-word !important;
-#         overflow-wrap: break-word !important;
-#         padding: 4px !important;
-#         font-size: 13px !important;
-#     }
-
-#     /* Remove horizontal scrollbar globally */
-#     ::-webkit-scrollbar:horizontal {
-#         height: 0px !important;
-#         display: none !important;
-#     }
-
-# </style>
-# """, unsafe_allow_html=True)
-
-
-#=========================================================
 st.markdown("""
 <style>
-/* CONTAINER FIXES */
-[data-testid="stDataEditorContainer"], 
-.block-container {
-    overflow-x: hidden !important;
-    max-width: 100vw !important;
-}
 
-/* TABLE FIXES */
-div[data-testid="stDataEditor"] table {
-    table-layout: fixed !important;
-    width: 100% !important;
-}
+    /* Disable horizontal scroll in ALL containers */
+    [data-testid="stDataFrameResizable"],
+    [data-testid="stDataEditor"],
+    [data-testid="stDataEditorContainer"],
+    .block-container,
+    div[data-testid="stHorizontalBlock"],
+    div[data-testid="stDataEditorViewport"] {
+        overflow-x: hidden !important;
+        max-width: 100vw !important;
+    }
 
-/* HEADERS */
-div[data-testid="stDataEditor"] table th {
-    white-space: normal !important;
-    word-break: break-word !important;
-    padding: 4px !important;
-    font-size: 13px !important;
-}
+    /* The wrapper that forces horizontal scroll — shrink it */
+    div[data-testid="stDataEditorGrid"] {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+    }
 
-/* CELLS */
-div[data-testid="stDataEditor"] table td {
-    white-space: normal !important;
-    word-break: break-word !important;
-    overflow-wrap: break-word !important;
-    padding: 4px !important;
-    font-size: 13px !important;
-}
+    /* The actual table */
+    div[data-testid="stDataEditor"] table {
+        table-layout: fixed !important;   /* CRITICAL */
+        width: 100% !important;
+        max-width: 100% !important;
+    }
 
-/* ALL ROWS GRAY */
-div[data-testid="stDataEditor"] table tbody tr {
-    background-color: #d3d3d3 !important;  /* light gray for all rows */
-}
+    /* Headers */
+    div[data-testid="stDataEditor"] table th {
+        max-width: 60px !important;
+        white-space: normal !important;
+        word-break: break-word !important;
+        padding: 4px !important;
+        font-size: 13px !important;
+    }
 
-/* Hover effect */
-div[data-testid="stDataEditor"] table tbody tr:hover {
-    background-color: #a8c5ff !important;
-}
+    /* Cells */
+    div[data-testid="stDataEditor"] table td {
+        max-width: 60px !important;
+        white-space: normal !important;
+        word-break: break-word !important;
+        overflow-wrap: break-word !important;
+        padding: 4px !important;
+        font-size: 13px !important;
+    }
+
+    /* Remove horizontal scrollbar globally */
+    ::-webkit-scrollbar:horizontal {
+        height: 0px !important;
+        display: none !important;
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
 
-# ============================
+# ===============================
 
 
 st.markdown("<h1 style='text-align:center;'>📊 Excel Data Management Panel</h1>", unsafe_allow_html=True)
@@ -613,6 +567,23 @@ DISPLAY_COLUMN_ORDER = [
 
 # df_show ONLY for UI display (this does NOT affect saving)
 df_show = df[DISPLAY_COLUMN_ORDER].copy()
+
+
+# --------------------------
+# Apply gray to even rows using Pandas Styler
+# --------------------------
+def highlight_even_rows(row):
+    if row.name % 2 == 1:  # even rows visually
+        return ['background-color: #d3d3d3']*len(row)
+    else:
+        return ['']*len(row)
+
+df_styled = df_show.style.apply(highlight_even_rows, axis=1)
+
+st.subheader("📂 Editable Table (Only Selected Columns Shown)")
+
+# Display styled DataFrame (read-only with even-row gray)
+st.dataframe(df_styled, use_container_width=True)
 
 
 # --------------------------
