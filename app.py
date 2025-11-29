@@ -515,12 +515,18 @@ DISPLAY_COLUMN_ORDER = [
 df_display = df[DISPLAY_COLUMN_ORDER].copy()
 
 # --------------------------
-# Define row background coloring for even rows
+# Pandas styling for even rows (preview only)
 # --------------------------
+def highlight_even_rows(row):
+    return ['background-color: #d3d3d3' if row.name % 2 == 1 else '' for _ in row]
+
+st.subheader("📊 Preview (light grey for even rows)")
+st.dataframe(df_display.style.apply(highlight_even_rows, axis=1), use_container_width=True)
+
 # --------------------------
 # Editable table
 # --------------------------
-st.subheader("📂 Editable Table (make changes and click Save)")
+st.subheader("📂 Editable Table (make changes below)")
 edited_display_df = st.data_editor(
     df_display,
     use_container_width=True,
@@ -565,6 +571,58 @@ if st.button("💾 Save Changes to Drive"):
         st.success("✅ Excel and folder updated!")
     except Exception as e:
         st.error(f"Failed to upload: {e}")
+
+# # --------------------------===============================================================
+# # Define row background coloring for even rows
+# # --------------------------
+# # --------------------------
+# # Editable table
+# # --------------------------
+# st.subheader("📂 Editable Table (make changes and click Save)")
+# edited_display_df = st.data_editor(
+#     df_display,
+#     use_container_width=True,
+#     hide_index=True,
+#     num_rows="dynamic",
+#     column_config={
+#         "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
+#         "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
+#     }
+# )
+
+# # --------------------------
+# # Search/filter
+# # --------------------------
+# search = st.text_input("Search (filters visible rows)", value="")
+# if search:
+#     mask = edited_display_df.apply(lambda row: row.astype(str).str.contains(search, case=False).any(), axis=1)
+#     filtered = edited_display_df[mask]
+# else:
+#     filtered = edited_display_df
+
+# # --------------------------
+# # Save button
+# # --------------------------
+# if st.button("💾 Save Changes to Drive"):
+#     try:
+#         with st.spinner("Uploading updated Excel to Drive..."):
+#             # Merge edited columns back to original df
+#             for col in DISPLAY_COLUMN_ORDER:
+#                 df[col] = edited_display_df[col]
+
+#             # Upload full dataframe
+#             upload_excel_from_df(FILE_ID, df)
+
+#             # Refresh parent folder timestamp
+#             drive_service.files().update(
+#                 fileId=FOLDER_ID,
+#                 body={},
+#                 supportsAllDrives=True
+#             ).execute()
+
+#         st.success("✅ Excel and folder updated!")
+#     except Exception as e:
+#         st.error(f"Failed to upload: {e}")
 
 
 # --------------------------
