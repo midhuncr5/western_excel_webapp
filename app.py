@@ -569,16 +569,6 @@ DISPLAY_COLUMN_ORDER = [
 df_show = df[DISPLAY_COLUMN_ORDER].copy()
 
 
-# --------------------------
-# Apply gray to even rows using Pandas Styler
-# --------------------------
-def highlight_even_rows(row):
-    if row.name % 2 == 1:  # even rows visually
-        return ['background-color: #d3d3d3']*len(row)
-    else:
-        return ['']*len(row)
-
-df_styled = df_show.style.apply(highlight_even_rows, axis=1)
 
 st.subheader("📂 Editable Table (Only Selected Columns Shown)")
 
