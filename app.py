@@ -404,54 +404,54 @@ for col in ["APPROVAL_1", "APPROVAL_2"]:
         df[col] = df[col].astype(str).fillna("")  # Force string dtype and fill NaN
 
 
-# --------------------------
-# Status options for dropdowns
-# --------------------------
-status_options = ["ACCEPTED", "REJECTED", ""]  # include empty
+# # --------------------------
+# # Status options for dropdowns
+# # --------------------------
+# status_options = ["ACCEPTED", "REJECTED", ""]  # include empty
 
-# --------------------------
-# Editable table
-# --------------------------
-st.subheader("📂 Editable Table (make changes and click Save)")
+# # --------------------------
+# # Editable table
+# # --------------------------
+# st.subheader("📂 Editable Table (make changes and click Save)")
 
-try:
-    edited_df = st.data_editor(
-        df,
-        use_container_width=True,
-        hide_index=True,
-        num_rows="dynamic",
-        column_config={
-            "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
-            "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
-        }
-    )
-except Exception:
-    # Fallback: editable without selectbox
-    edited_df = st.data_editor(df, use_container_width=True, hide_index=True, num_rows="dynamic")
+# try:
+#     edited_df = st.data_editor(
+#         df,
+#         use_container_width=True,
+#         hide_index=True,
+#         num_rows="dynamic",
+#         column_config={
+#             "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
+#             "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
+#         }
+#     )
+# except Exception:
+#     # Fallback: editable without selectbox
+#     edited_df = st.data_editor(df, use_container_width=True, hide_index=True, num_rows="dynamic")
 
-# --------------------------
-# Search/filter
-# --------------------------
-search = st.text_input("Search (filters visible rows)", value="")
-if search:
-    mask = edited_df.apply(lambda row: row.astype(str).str.contains(search, case=False).any(), axis=1)
-    filtered = edited_df[mask]
-else:
-    filtered = edited_df
+# # --------------------------
+# # Search/filter
+# # --------------------------
+# search = st.text_input("Search (filters visible rows)", value="")
+# if search:
+#     mask = edited_df.apply(lambda row: row.astype(str).str.contains(search, case=False).any(), axis=1)
+#     filtered = edited_df[mask]
+# else:
+#     filtered = edited_df
 
-# st.write("Showing", len(filtered), "rows")
-# st.dataframe(filtered, use_container_width=True)
+# # st.write("Showing", len(filtered), "rows")
+# # st.dataframe(filtered, use_container_width=True)
 
-# --------------------------
-# Save button
-# --------------------------
-if st.button("💾 Save Changes to Drive"):
-    try:
-        with st.spinner("Uploading updated Excel to Drive..."):
-            upload_excel_from_df(FILE_ID, edited_df)
-        st.success("✅ Excel updated successfully in Google Drive.")
-    except Exception as e:
-        st.error(f"Failed to upload: {e}")
+# # --------------------------
+# # Save button
+# # --------------------------
+# if st.button("💾 Save Changes to Drive"):
+#     try:
+#         with st.spinner("Uploading updated Excel to Drive..."):
+#             upload_excel_from_df(FILE_ID, edited_df)
+#         st.success("✅ Excel updated successfully in Google Drive.")
+#     except Exception as e:
+#         st.error(f"Failed to upload: {e}")
 
 # if st.button("💾 Save Changes to Drive"):
 #     try:
@@ -468,6 +468,99 @@ if st.button("💾 Save Changes to Drive"):
 #         st.success("✅ Excel and folder updated!")
 #     except Exception as e:
 #         st.error(f"Failed to upload: {e}")
+
+# --------------------------
+# DISPLAY-ONLY COLUMN ORDER
+# --------------------------
+DISPLAY_COLUMN_ORDER = [
+    "DATE",
+    "COMPANY ACCOUNT NO",
+    "COMPANY IFSC",
+    "COMPANY PAN",
+    "COMPANY GSTIN",
+    "CORPORATE ID",
+    "TRANSACTION TYPE",
+    "GST %",
+    "TDS %",
+    "GST (Yes/No)",
+    "TDS (Yes/No)",
+    "FROM_MAIL",
+    "STATUS_MATCHED_ESTIMATION",
+    "PROJECT_NAME",
+    "CATEGORY",
+    "BENEFICIARY PAN",
+    "BENEFICIARY GSTIN",
+    "BENEFICIARY ACCOUNT NO",
+    "BENEFICIARY NAME",
+    "BASIC_AMOUNT",
+    "FINAL AMOUNT",
+    "NARRATION",
+    "FIXED_AMOUNT",
+    "BALANCE_AMOUNT",
+    "ADJUSTMENT_AMOUNT",
+    "APPROVAL_1",
+    "APPROVAL_2",
+    "Remarks"
+]
+
+# df_show ONLY for UI display (this does NOT affect saving)
+df_show = df[DISPLAY_COLUMN_ORDER].copy()
+
+
+# --------------------------
+# Status options
+# --------------------------
+status_options = ["ACCEPTED", "REJECTED", ""]
+
+
+# --------------------------
+# Editable Table (display only selected columns)
+# --------------------------
+st.subheader("📂 Editable Table (Only Selected Columns Shown)")
+
+edited_visible_df = st.data_editor(
+    df_show,
+    use_container_width=True,
+    hide_index=True,
+    num_rows="dynamic",
+    column_config={
+        "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
+        "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
+    }
+)
+
+
+# --------------------------
+# Search / filter logic
+# --------------------------
+search = st.text_input("Search (filters visible rows)", value="")
+if search:
+    mask = edited_visible_df.apply(
+        lambda row: row.astype(str).str.contains(search, case=False).any(),
+        axis=1
+    )
+    filtered = edited_visible_df[mask]
+else:
+    filtered = edited_visible_df
+
+
+# --------------------------
+# Save button
+# --------------------------
+if st.button("💾 Save Changes to Drive"):
+    try:
+        # Update ONLY values of these columns (NOT column order)
+        for col in DISPLAY_COLUMN_ORDER:
+            df[col] = edited_visible_df[col]
+
+        # Save full df with original order
+        with st.spinner("Uploading updated Excel to Drive..."):
+            upload_excel_from_df(FILE_ID, df)
+
+        st.success("✅ Excel updated successfully in Google Drive.")
+
+    except Exception as e:
+        st.error(f"Failed to upload: {e}")
 
 
 # --------------------------
