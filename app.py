@@ -290,6 +290,25 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 import gspread
 import altair as alt
+import streamlit.components.v1 as components
+
+scroll_script = """
+<script>
+    // Save scroll position
+    document.addEventListener('scroll', function() {
+        sessionStorage.setItem('scrollPos', window.scrollY);
+    });
+
+    // Restore scroll position
+    window.addEventListener('load', function() {
+        let pos = sessionStorage.getItem('scrollPos');
+        if (pos) window.scrollTo(0, parseInt(pos));
+    });
+</script>
+"""
+
+components.html(scroll_script, height=0, width=0)
+
 
 # --------------------------
 # PAGE CONFIG
@@ -672,4 +691,5 @@ st.altair_chart(chart, use_container_width=True)
 
 st.write("---")
 st.info("Note: This app overwrites the file in Drive. Consider creating backups if multiple users will edit.")
+components.html(scroll_script, height=0, width=0)
 
