@@ -292,6 +292,26 @@ import gspread
 import altair as alt
 import streamlit.components.v1 as components
 
+components.html(
+    """
+    <script>
+    // Restore scroll on load
+    document.addEventListener("DOMContentLoaded", function() {
+        const pos = sessionStorage.getItem("scroll_pos");
+        if (pos !== null) {
+            window.scrollTo(0, parseInt(pos));
+        }
+    });
+
+    // Save scroll position
+    window.addEventListener("scroll", function() {
+        sessionStorage.setItem("scroll_pos", window.scrollY);
+    });
+    </script>
+    """,
+    height=0,
+)
+
 # --------------------------
 # PAGE CONFIG
 # --------------------------
@@ -302,6 +322,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 # ============================
+
+
 
 # ------------------------------------------------------------
 # SCROLL POSITION FIX (WORKING SOLUTION)
