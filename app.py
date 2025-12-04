@@ -428,6 +428,16 @@ for col in ["APPROVAL_1", "APPROVAL_2"]:
     else:
         df[col] = df[col].astype(str).fillna("")  # Force string dtype and fill NaN
 
+# ---------------------------------------
+# REMOVE rows that are already REJECTED
+# ---------------------------------------
+df = df[
+    ~(
+        (df["APPROVAL_1"].str.upper() == "REJECTED") |
+        (df["APPROVAL_2"].str.upper() == "REJECTED")
+    )
+].reset_index(drop=True)
+
 
 # --------------------------
 # Status options for dropdowns
