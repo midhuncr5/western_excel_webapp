@@ -292,24 +292,6 @@ import gspread
 import altair as alt
 import streamlit.components.v1 as components
 
-scroll_script = """
-<script>
-    // Save scroll position
-    document.addEventListener('scroll', function() {
-        sessionStorage.setItem('scrollPos', window.scrollY);
-    });
-
-    // Restore scroll position
-    window.addEventListener('load', function() {
-        let pos = sessionStorage.getItem('scrollPos');
-        if (pos) window.scrollTo(0, parseInt(pos));
-    });
-</script>
-"""
-
-components.html(scroll_script, height=0, width=0)
-
-
 # --------------------------
 # PAGE CONFIG
 # --------------------------
@@ -320,14 +302,33 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 # ============================
-# REMOVE HORIZONTAL SCROLL + AUTO-FIT TABLE COLUMNS
-# ============================
 
-# ===============================
+# ------------------------------------------------------------
+# SCROLL POSITION FIX (WORKING SOLUTION)
+# ------------------------------------------------------------
+scroll_js = """
+<script>
+document.addEventListener("DOMContentLoaded", function(event) {
+    let pos = sessionStorage.getItem("scroll_pos");
+    if (pos !== null) {
+        window.scrollTo(0, parseInt(pos));
+    }
+});
 
+window.addEventListener("scroll", function(event) {
+    sessionStorage.setItem("scroll_pos", window.scrollY);
+});
+</script>
+"""
+
+st.markdown(scroll_js, unsafe_allow_html=True)
+
+#--------------------------------------------------
 
 st.markdown("<h1 style='text-align:center;'>📊 Excel Data Management Panel</h1>", unsafe_allow_html=True)
 st.write("---")
+
+
 
 # --------------------------
 # LOAD SERVICE ACCOUNT FROM STREAMLIT SECRETS
@@ -701,5 +702,5 @@ st.altair_chart(chart, use_container_width=True)
 
 st.write("---")
 st.info("Note: This app overwrites the file in Drive. Consider creating backups if multiple users will edit.")
-components.html(scroll_script, height=0, width=0)
+
 
