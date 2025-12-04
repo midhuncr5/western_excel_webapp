@@ -567,6 +567,25 @@ DISPLAY_COLUMN_ORDER = [
 df_display = df[DISPLAY_COLUMN_ORDER].copy()
 
 
+# ===================================================================
+# AUTO-FILL ADJUSTMENT_AMOUNT BASED ON RULES
+# ===================================================================
+for col in ["STATUS_MATCHED_ESTIMATION", "BASIC_AMOUNT", "ADJUSTMENT_AMOUNT"]:
+    if col not in df_display.columns:
+        df_display[col] = ""
+
+df_display["BASIC_AMOUNT"] = pd.to_numeric(df_display["BASIC_AMOUNT"], errors="coerce").fillna(0)
+df_display["ADJUSTMENT_AMOUNT"] = pd.to_numeric(df_display["ADJUSTMENT_AMOUNT"], errors="coerce").fillna(0)
+
+cond_status = df_display["STATUS_MATCHED_ESTIMATION"].astype(str).str.upper() == "ESTIMATION NOT MATCHED"
+cond_basic = df_display["BASIC_AMOUNT"] != 0
+cond_adj_empty = df_display["ADJUSTMENT_AMOUNT"] == 0
+
+mask = cond_status & cond_basic & cond_adj_empty
+df_display.loc[mask, "ADJUSTMENT_AMOUNT"] = df_display.loc[mask, "BASIC_AMOUNT"]
+
+
+
 # --------------------------===============================================================
 # Define row background coloring for even rows
 # --------------------------
