@@ -325,21 +325,6 @@ st.set_page_config(
 
 
 
-# ============================
-#  GLOBAL RERUN FREEZE CONTROL
-# ============================
-if "freeze" not in st.session_state:
-    st.session_state.freeze = False  # default: editing allowed
-
-# Toggle switch: Freeze app (no auto rerun)
-freeze_mode = st.sidebar.toggle("Disable Auto-Rerun (Freeze App)", value=st.session_state.freeze)
-
-st.session_state.freeze = freeze_mode
-
-if st.session_state.freeze:
-    st.warning("⏸ Auto-rerun disabled. Changes will not update until you click Save.")
-    st.stop()   # ❗ NOTHING below this runs (no rerun)
-
 
 
 
