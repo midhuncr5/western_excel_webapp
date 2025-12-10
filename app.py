@@ -746,9 +746,215 @@
 
 # st.write("---")
 # st.info("Note: This app overwrites the file in Drive. Consider creating backups if multiple users will edit.")
-# #======================================================================================================================
+# #======================================new avoid rerun ================================================================================
 # app.py
 # app.py
+# import io
+# import json
+# import pandas as pd
+# import streamlit as st
+# from google.oauth2.service_account import Credentials
+# from googleapiclient.discovery import build
+# from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
+# import gspread
+# import altair as alt
+
+# # --------------------------
+# # PAGE CONFIG
+# # --------------------------
+# st.set_page_config(
+#     page_title="Drive Excel Sync",
+#     page_icon="📝",
+#     layout="wide",
+#     initial_sidebar_state="expanded"
+# )
+
+# st.markdown("<h1 style='text-align:center;'>📊 Excel Data Management Panel</h1>", unsafe_allow_html=True)
+# st.write("---")
+
+# # --------------------------
+# # LOAD SERVICE ACCOUNT
+# # --------------------------
+# required_secrets = ["SERVICE_ACCOUNT_JSON", "FILE_ID", "SHEET_FILE_ID"]
+# for key in required_secrets:
+#     if key not in st.secrets:
+#         st.error(f"{key} not found in Streamlit secrets.")
+#         st.stop()
+
+# json_key = json.loads(st.secrets["SERVICE_ACCOUNT_JSON"])
+# FILE_ID = st.secrets["FILE_ID"].strip()
+# SHEET_FILE_ID = st.secrets["SHEET_FILE_ID"].strip()
+# FOLDER_ID = "1PnU8vSLG6w30kCfCb9Ho4lNqoCYwrShH"
+
+# SCOPES = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/spreadsheets"]
+# creds = Credentials.from_service_account_info(json_key, scopes=SCOPES)
+# drive_service = build("drive", "v3", credentials=creds)
+# gspread_client = gspread.authorize(creds)
+
+# # --------------------------
+# # UTILS
+# # --------------------------
+# @st.cache_data(ttl=300)
+# def download_excel_as_df(file_id: str) -> pd.DataFrame:
+#     """Download Excel from Drive as DataFrame"""
+#     request = drive_service.files().get_media(fileId=file_id)
+#     fh = io.BytesIO()
+#     downloader = MediaIoBaseDownload(fh, request)
+#     done = False
+#     while not done:
+#         _, done = downloader.next_chunk()
+#     fh.seek(0)
+#     df = pd.read_excel(fh, engine="openpyxl")
+#     return df
+
+# def upload_excel_from_df(file_id: str, df: pd.DataFrame):
+#     """Upload DataFrame to Drive (overwrite)"""
+#     out = io.BytesIO()
+#     df.to_excel(out, index=False, engine="openpyxl")
+#     out.seek(0)
+#     media = MediaIoBaseUpload(
+#         out,
+#         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+#         resumable=True
+#     )
+#     drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
+
+# def safe_str_col(df, col):
+#     """Ensure a column is string type and fill NaN"""
+#     if col not in df.columns:
+#         df[col] = ""
+#     else:
+#         df[col] = df[col].astype(str).fillna("")
+#     return df
+
+# # --------------------------
+# # SESSION STATE: Load DataFrame once
+# # --------------------------
+# if "df" not in st.session_state:
+#     with st.spinner("Downloading Excel from Google Drive..."):
+#         st.session_state.df = download_excel_as_df(FILE_ID)
+
+# df = st.session_state.df
+
+# # Ensure string columns for safe .str.upper()
+# df = safe_str_col(df, "APPROVAL_1")
+# df = safe_str_col(df, "APPROVAL_2")
+
+# # Remove rejected rows
+# df = df[
+#     ~(
+#         (df["APPROVAL_1"].str.upper() == "REJECTED") |
+#         (df["APPROVAL_2"].str.upper() == "REJECTED")
+#     )
+# ].reset_index(drop=True)
+
+# # --------------------------
+# # Sidebar
+# # --------------------------
+# st.sidebar.header("Controls")
+# if st.sidebar.checkbox("Show DataFrame Info"):
+#     st.sidebar.write(df.info())
+
+# # --------------------------
+# # Search box (persisted)
+# # --------------------------
+# if "search" not in st.session_state:
+#     st.session_state.search = ""
+
+# st.session_state.search = st.text_input("Search (filters visible rows)", value=st.session_state.search)
+
+# # --------------------------
+# # Editable Table in Form (avoids rerun)
+# # --------------------------
+# st.subheader("📂 Editable Table")
+# status_options = ["ACCEPTED", "REJECTED", ""]
+
+# with st.form("edit_form"):
+#     edited_df = st.data_editor(
+#         df,
+#         use_container_width=True,
+#         hide_index=True,
+#         column_config={
+#             "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
+#             "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
+#         },
+#         num_rows="dynamic"
+#     )
+#     submit = st.form_submit_button("💾 Save Changes")
+#     if submit:
+#         st.session_state.df = edited_df  # persist edits
+#         upload_excel_from_df(FILE_ID, edited_df)
+#         # refresh folder timestamp
+#         drive_service.files().update(fileId=FOLDER_ID, body={}, supportsAllDrives=True).execute()
+#         st.success("✅ Excel updated successfully!")
+
+# # --------------------------
+# # Filter table by search
+# # --------------------------
+# if st.session_state.search:
+#     mask = st.session_state.df.apply(lambda row: row.astype(str).str.contains(st.session_state.search, case=False).any(), axis=1)
+#     filtered_df = st.session_state.df[mask]
+# else:
+#     filtered_df = st.session_state.df
+
+# st.write(f"Showing {len(filtered_df)} rows after filter")
+# st.dataframe(filtered_df, use_container_width=True)
+
+# # --------------------------
+# # Google Sheet: Top Expenses
+# # --------------------------
+# st.write("---")
+# st.subheader("💼 Project-wise Highest Expense Categories")
+
+# try:
+#     sh = gspread_client.open_by_key(SHEET_FILE_ID)
+#     ws = sh.sheet1
+#     expense_df = pd.DataFrame(ws.get_all_records())
+# except Exception as e:
+#     st.error(f"Error loading Google Sheet: {e}")
+#     st.stop()
+
+# # DATE column check
+# if "DATE" not in expense_df.columns:
+#     st.error("DATE column not found in Google Sheet")
+#     st.stop()
+
+# expense_df["DATE"] = pd.to_datetime(expense_df["DATE"], format="%d-%m-%Y", errors="coerce")
+# expense_df = expense_df.dropna(subset=["DATE"])
+# current_month, current_year = pd.Timestamp.now().month, pd.Timestamp.now().year
+# expense_df = expense_df[(expense_df["DATE"].dt.month == current_month) &
+#                         (expense_df["DATE"].dt.year == current_year)]
+
+# st.info(f"Showing expenses for **{current_month}-{current_year}**")
+
+# required_cols = ["PROJECT_NAME", "CATEGORY", "FINAL AMOUNT"]
+# missing_cols = [c for c in required_cols if c not in expense_df.columns]
+# if missing_cols:
+#     st.error(f"Missing columns in Google Sheet: {missing_cols}")
+#     st.stop()
+
+# expense_df["PROJECT_NAME"] = expense_df["PROJECT_NAME"].astype(str).str.upper().str.strip()
+# expense_df["FINAL AMOUNT"] = pd.to_numeric(expense_df["FINAL AMOUNT"], errors="coerce").fillna(0)
+
+# grp = expense_df.groupby(["PROJECT_NAME", "CATEGORY"])["FINAL AMOUNT"].sum().reset_index()
+# top_expenses = grp.sort_values("FINAL AMOUNT", ascending=False).groupby("PROJECT_NAME").head(1).reset_index(drop=True)
+
+# st.dataframe(top_expenses, use_container_width=True)
+
+# chart = alt.Chart(top_expenses).mark_bar().encode(
+#     x=alt.X("PROJECT_NAME:N", title="Project"),
+#     y=alt.Y("FINAL AMOUNT:Q", title="Total Expense"),
+#     color="CATEGORY:N",
+#     tooltip=["PROJECT_NAME", "CATEGORY", "FINAL AMOUNT"]
+# ).properties(height=400)
+
+# st.altair_chart(chart, use_container_width=True)
+
+# st.write("---")
+# st.info("⚠️ Editing this app overwrites the file in Drive. Consider backups if multiple users edit simultaneously.")
+
+#==================================new rerun latest ===================================================================
+
 import io
 import json
 import pandas as pd
@@ -769,34 +975,47 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("<h1 style='text-align:center;'>📊 Excel Data Management Panel</h1>", unsafe_allow_html=True)
-st.write("---")
+# --------------------------
+# SCROLL RESTORATION
+# --------------------------
+st.markdown(
+    """
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        let pos = sessionStorage.getItem("scroll_pos");
+        if(pos) window.scrollTo(0, parseInt(pos));
+    });
+    window.addEventListener("scroll", function() {
+        sessionStorage.setItem("scroll_pos", window.scrollY);
+    });
+    </script>
+    """, unsafe_allow_html=True
+)
 
 # --------------------------
 # LOAD SERVICE ACCOUNT
 # --------------------------
-required_secrets = ["SERVICE_ACCOUNT_JSON", "FILE_ID", "SHEET_FILE_ID"]
-for key in required_secrets:
-    if key not in st.secrets:
-        st.error(f"{key} not found in Streamlit secrets.")
-        st.stop()
+if "SERVICE_ACCOUNT_JSON" not in st.secrets or "FILE_ID" not in st.secrets or "SHEET_FILE_ID" not in st.secrets:
+    st.error("Add SERVICE_ACCOUNT_JSON, FILE_ID, SHEET_FILE_ID to Streamlit secrets!")
+    st.stop()
 
 json_key = json.loads(st.secrets["SERVICE_ACCOUNT_JSON"])
 FILE_ID = st.secrets["FILE_ID"].strip()
 SHEET_FILE_ID = st.secrets["SHEET_FILE_ID"].strip()
 FOLDER_ID = "1PnU8vSLG6w30kCfCb9Ho4lNqoCYwrShH"
 
-SCOPES = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/spreadsheets"]
+SCOPES = ["https://www.googleapis.com/auth/drive",
+          "https://www.googleapis.com/auth/spreadsheets"]
+
 creds = Credentials.from_service_account_info(json_key, scopes=SCOPES)
 drive_service = build("drive", "v3", credentials=creds)
 gspread_client = gspread.authorize(creds)
 
 # --------------------------
-# UTILS
+# CACHED EXCEL DOWNLOAD
 # --------------------------
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60)
 def download_excel_as_df(file_id: str) -> pd.DataFrame:
-    """Download Excel from Drive as DataFrame"""
     request = drive_service.files().get_media(fileId=file_id)
     fh = io.BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
@@ -807,40 +1026,34 @@ def download_excel_as_df(file_id: str) -> pd.DataFrame:
     df = pd.read_excel(fh, engine="openpyxl")
     return df
 
+# --------------------------
+# EXCEL UPLOAD
+# --------------------------
 def upload_excel_from_df(file_id: str, df: pd.DataFrame):
-    """Upload DataFrame to Drive (overwrite)"""
     out = io.BytesIO()
     df.to_excel(out, index=False, engine="openpyxl")
     out.seek(0)
-    media = MediaIoBaseUpload(
-        out,
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        resumable=True
-    )
+    media = MediaIoBaseUpload(out, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", resumable=True)
     drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
 
-def safe_str_col(df, col):
-    """Ensure a column is string type and fill NaN"""
-    if col not in df.columns:
-        df[col] = ""
-    else:
-        df[col] = df[col].astype(str).fillna("")
-    return df
-
 # --------------------------
-# SESSION STATE: Load DataFrame once
+# INITIALIZE SESSION STATE
 # --------------------------
 if "df" not in st.session_state:
     with st.spinner("Downloading Excel from Google Drive..."):
         st.session_state.df = download_excel_as_df(FILE_ID)
+        # Ensure approval columns exist
+        for col in ["APPROVAL_1", "APPROVAL_2"]:
+            st.session_state.df[col] = st.session_state.df.get(col, "").astype(str).fillna("")
+
+if "search" not in st.session_state:
+    st.session_state.search = ""
 
 df = st.session_state.df
 
-# Ensure string columns for safe .str.upper()
-df = safe_str_col(df, "APPROVAL_1")
-df = safe_str_col(df, "APPROVAL_2")
-
-# Remove rejected rows
+# --------------------------
+# REMOVE REJECTED ROWS
+# --------------------------
 df = df[
     ~(
         (df["APPROVAL_1"].str.upper() == "REJECTED") |
@@ -849,63 +1062,72 @@ df = df[
 ].reset_index(drop=True)
 
 # --------------------------
-# Sidebar
+# DISPLAY TABLE
 # --------------------------
-st.sidebar.header("Controls")
-if st.sidebar.checkbox("Show DataFrame Info"):
-    st.sidebar.write(df.info())
-
-# --------------------------
-# Search box (persisted)
-# --------------------------
-if "search" not in st.session_state:
-    st.session_state.search = ""
-
-st.session_state.search = st.text_input("Search (filters visible rows)", value=st.session_state.search)
-
-# --------------------------
-# Editable Table in Form (avoids rerun)
-# --------------------------
-st.subheader("📂 Editable Table")
 status_options = ["ACCEPTED", "REJECTED", ""]
 
-with st.form("edit_form"):
+DISPLAY_COLUMN_ORDER = [
+    "DATE", "COMPANY ACCOUNT NO", "COMPANY IFSC", "COMPANY PAN", "COMPANY GSTIN",
+    "CORPORATE ID", "TRANSACTION TYPE", "GST %", "TDS %", "GST (Yes/No)",
+    "TDS (Yes/No)", "FROM_MAIL", "STATUS_MATCHED_ESTIMATION", "BENEFICIARY PAN",
+    "BENEFICIARY GSTIN", "BENEFICIARY ACCOUNT NO", "FINAL AMOUNT", "PROJECT_NAME",
+    "CATEGORY", "FIXED_AMOUNT", "BALANCE_AMOUNT", "ADJUSTMENT_AMOUNT", "BASIC_AMOUNT",
+    "APPROVAL_1", "APPROVAL_2", "BENEFICIARY NAME", "NARRATION", "Remarks"
+]
+
+df_display = df[DISPLAY_COLUMN_ORDER].copy()
+df_display["BASIC_AMOUNT"] = pd.to_numeric(df_display.get("BASIC_AMOUNT", 0), errors="coerce").fillna(0)
+df_display["ADJUSTMENT_AMOUNT"] = pd.to_numeric(df_display.get("ADJUSTMENT_AMOUNT", 0), errors="coerce").fillna(0)
+
+# Auto-fill adjustment amount
+mask = (
+    df_display.get("STATUS_MATCHED_ESTIMATION", "").astype(str).str.upper() == "ESTIMATION NOT MATCHED"
+) & (df_display["BASIC_AMOUNT"] != 0) & (df_display["ADJUSTMENT_AMOUNT"] == 0)
+df_display.loc[mask, "ADJUSTMENT_AMOUNT"] = df_display.loc[mask, "BASIC_AMOUNT"]
+
+# --------------------------
+# FORM FOR EDITING
+# --------------------------
+with st.form("edit_table_form"):
     edited_df = st.data_editor(
-        df,
+        df_display,
         use_container_width=True,
         hide_index=True,
+        num_rows="dynamic",
         column_config={
             "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
             "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
-        },
-        num_rows="dynamic"
+        }
     )
-    submit = st.form_submit_button("💾 Save Changes")
-    if submit:
-        st.session_state.df = edited_df  # persist edits
-        upload_excel_from_df(FILE_ID, edited_df)
-        # refresh folder timestamp
+    submit = st.form_submit_button("💾 Save Changes to Drive")
+
+if submit:
+    try:
+        # Merge edited columns back
+        for col in DISPLAY_COLUMN_ORDER:
+            df[col] = edited_df[col]
+        st.session_state.df = df
+        upload_excel_from_df(FILE_ID, df)
+        # Refresh folder
         drive_service.files().update(fileId=FOLDER_ID, body={}, supportsAllDrives=True).execute()
-        st.success("✅ Excel updated successfully!")
+        st.success("✅ Excel and folder updated!")
+    except Exception as e:
+        st.error(f"Failed to upload: {e}")
 
 # --------------------------
-# Filter table by search
+# SEARCH FILTER
 # --------------------------
-if st.session_state.search:
-    mask = st.session_state.df.apply(lambda row: row.astype(str).str.contains(st.session_state.search, case=False).any(), axis=1)
-    filtered_df = st.session_state.df[mask]
-else:
-    filtered_df = st.session_state.df
-
-st.write(f"Showing {len(filtered_df)} rows after filter")
-st.dataframe(filtered_df, use_container_width=True)
+st.session_state.search = st.text_input("Search (filters visible rows)", st.session_state.search)
+filtered = edited_df if st.session_state.search == "" else edited_df[
+    edited_df.apply(lambda row: row.astype(str).str.contains(st.session_state.search, case=False).any(), axis=1)
+]
+st.dataframe(filtered, use_container_width=True)
 
 # --------------------------
-# Google Sheet: Top Expenses
+# PROJECT-WISE EXPENSE
 # --------------------------
 st.write("---")
 st.subheader("💼 Project-wise Highest Expense Categories")
-
 try:
     sh = gspread_client.open_by_key(SHEET_FILE_ID)
     ws = sh.sheet1
@@ -914,42 +1136,39 @@ except Exception as e:
     st.error(f"Error loading Google Sheet: {e}")
     st.stop()
 
-# DATE column check
-if "DATE" not in expense_df.columns:
-    st.error("DATE column not found in Google Sheet")
-    st.stop()
-
-expense_df["DATE"] = pd.to_datetime(expense_df["DATE"], format="%d-%m-%Y", errors="coerce")
-expense_df = expense_df.dropna(subset=["DATE"])
-current_month, current_year = pd.Timestamp.now().month, pd.Timestamp.now().year
-expense_df = expense_df[(expense_df["DATE"].dt.month == current_month) &
-                        (expense_df["DATE"].dt.year == current_year)]
-
-st.info(f"Showing expenses for **{current_month}-{current_year}**")
-
 required_cols = ["PROJECT_NAME", "CATEGORY", "FINAL AMOUNT"]
-missing_cols = [c for c in required_cols if c not in expense_df.columns]
-if missing_cols:
-    st.error(f"Missing columns in Google Sheet: {missing_cols}")
+missing = [c for c in required_cols if c not in expense_df.columns]
+if missing:
+    st.error(f"Missing columns: {missing}")
     st.stop()
 
 expense_df["PROJECT_NAME"] = expense_df["PROJECT_NAME"].astype(str).str.upper().str.strip()
 expense_df["FINAL AMOUNT"] = pd.to_numeric(expense_df["FINAL AMOUNT"], errors="coerce").fillna(0)
+
+# Filter current month
+expense_df["DATE"] = pd.to_datetime(expense_df["DATE"], errors="coerce")
+now = pd.Timestamp.now()
+expense_df = expense_df[
+    (expense_df["DATE"].dt.month == now.month) &
+    (expense_df["DATE"].dt.year == now.year)
+]
 
 grp = expense_df.groupby(["PROJECT_NAME", "CATEGORY"])["FINAL AMOUNT"].sum().reset_index()
 top_expenses = grp.sort_values("FINAL AMOUNT", ascending=False).groupby("PROJECT_NAME").head(1).reset_index(drop=True)
 
 st.dataframe(top_expenses, use_container_width=True)
 
+# Altair chart
 chart = alt.Chart(top_expenses).mark_bar().encode(
     x=alt.X("PROJECT_NAME:N", title="Project"),
     y=alt.Y("FINAL AMOUNT:Q", title="Total Expense"),
     color="CATEGORY:N",
     tooltip=["PROJECT_NAME", "CATEGORY", "FINAL AMOUNT"]
 ).properties(height=400)
-
 st.altair_chart(chart, use_container_width=True)
 
-st.write("---")
-st.info("⚠️ Editing this app overwrites the file in Drive. Consider backups if multiple users edit simultaneously.")
+st.info("Note: This app overwrites the file in Drive. Consider creating backups if multiple users edit.")
+
+
+
 
