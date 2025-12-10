@@ -748,6 +748,7 @@
 # st.info("Note: This app overwrites the file in Drive. Consider creating backups if multiple users will edit.")
 # #======================================================================================================================
 # app.py
+# app.py
 import io
 import json
 import pandas as pd
@@ -772,7 +773,7 @@ st.markdown("<h1 style='text-align:center;'>📊 Excel Data Management Panel</h1
 st.write("---")
 
 # --------------------------
-# LOAD SERVICE ACCOUNT FROM STREAMLIT SECRETS
+# LOAD SERVICE ACCOUNT
 # --------------------------
 required_secrets = ["SERVICE_ACCOUNT_JSON", "FILE_ID", "SHEET_FILE_ID"]
 for key in required_secrets:
@@ -785,11 +786,7 @@ FILE_ID = st.secrets["FILE_ID"].strip()
 SHEET_FILE_ID = st.secrets["SHEET_FILE_ID"].strip()
 FOLDER_ID = "1PnU8vSLG6w30kCfCb9Ho4lNqoCYwrShH"
 
-SCOPES = [
-    "https://www.googleapis.com/auth/drive",
-    "https://www.googleapis.com/auth/spreadsheets"
-]
-
+SCOPES = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/spreadsheets"]
 creds = Credentials.from_service_account_info(json_key, scopes=SCOPES)
 drive_service = build("drive", "v3", credentials=creds)
 gspread_client = gspread.authorize(creds)
@@ -822,8 +819,16 @@ def upload_excel_from_df(file_id: str, df: pd.DataFrame):
     )
     drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
 
+def safe_str_col(df, col):
+    """Ensure a column is string type and fill NaN"""
+    if col not in df.columns:
+        df[col] = ""
+    else:
+        df[col] = df[col].astype(str).fillna("")
+    return df
+
 # --------------------------
-# Load / persist DataFrame in session_state
+# SESSION STATE: Load DataFrame once
 # --------------------------
 if "df" not in st.session_state:
     with st.spinner("Downloading Excel from Google Drive..."):
@@ -831,19 +836,11 @@ if "df" not in st.session_state:
 
 df = st.session_state.df
 
-# --------------------------
-# Sidebar controls
-# --------------------------
-st.sidebar.header("Controls")
-if st.sidebar.checkbox("Show DataFrame Info"):
-    st.sidebar.write(df.info())
+# Ensure string columns for safe .str.upper()
+df = safe_str_col(df, "APPROVAL_1")
+df = safe_str_col(df, "APPROVAL_2")
 
-# Ensure APPROVAL columns exist
-for col in ["APPROVAL_1", "APPROVAL_2"]:
-    if col not in df.columns:
-        df[col] = ""
-
-# Filter out REJECTED rows
+# Remove rejected rows
 df = df[
     ~(
         (df["APPROVAL_1"].str.upper() == "REJECTED") |
@@ -851,10 +848,15 @@ df = df[
     )
 ].reset_index(drop=True)
 
-status_options = ["ACCEPTED", "REJECTED", ""]  # for dropdowns
+# --------------------------
+# Sidebar
+# --------------------------
+st.sidebar.header("Controls")
+if st.sidebar.checkbox("Show DataFrame Info"):
+    st.sidebar.write(df.info())
 
 # --------------------------
-# Store search input in session_state
+# Search box (persisted)
 # --------------------------
 if "search" not in st.session_state:
     st.session_state.search = ""
@@ -862,9 +864,11 @@ if "search" not in st.session_state:
 st.session_state.search = st.text_input("Search (filters visible rows)", value=st.session_state.search)
 
 # --------------------------
-# Editable table in a form (avoids full rerun)
+# Editable Table in Form (avoids rerun)
 # --------------------------
 st.subheader("📂 Editable Table")
+status_options = ["ACCEPTED", "REJECTED", ""]
+
 with st.form("edit_form"):
     edited_df = st.data_editor(
         df,
@@ -885,7 +889,7 @@ with st.form("edit_form"):
         st.success("✅ Excel updated successfully!")
 
 # --------------------------
-# Apply search filter
+# Filter table by search
 # --------------------------
 if st.session_state.search:
     mask = st.session_state.df.apply(lambda row: row.astype(str).str.contains(st.session_state.search, case=False).any(), axis=1)
@@ -897,7 +901,7 @@ st.write(f"Showing {len(filtered_df)} rows after filter")
 st.dataframe(filtered_df, use_container_width=True)
 
 # --------------------------
-# Google Sheet: Project-wise Highest Expense
+# Google Sheet: Top Expenses
 # --------------------------
 st.write("---")
 st.subheader("💼 Project-wise Highest Expense Categories")
@@ -937,7 +941,6 @@ top_expenses = grp.sort_values("FINAL AMOUNT", ascending=False).groupby("PROJECT
 
 st.dataframe(top_expenses, use_container_width=True)
 
-# Altair bar chart
 chart = alt.Chart(top_expenses).mark_bar().encode(
     x=alt.X("PROJECT_NAME:N", title="Project"),
     y=alt.Y("FINAL AMOUNT:Q", title="Total Expense"),
@@ -948,5 +951,5 @@ chart = alt.Chart(top_expenses).mark_bar().encode(
 st.altair_chart(chart, use_container_width=True)
 
 st.write("---")
-st.info("⚠️ Note: Editing this app overwrites the file in Drive. Consider backups if multiple users edit simultaneously.")
+st.info("⚠️ Editing this app overwrites the file in Drive. Consider backups if multiple users edit simultaneously.")
 
