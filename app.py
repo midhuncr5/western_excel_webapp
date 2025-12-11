@@ -1057,12 +1057,20 @@ df = st.session_state.df
 # --------------------------
 # REMOVE REJECTED ROWS
 # --------------------------
+# df = df[
+#     ~(
+#         (df["APPROVAL_1"].str.upper() == "REJECTED") |
+#         (df["APPROVAL_2"].str.upper() == "REJECTED")
+#     )
+# ].reset_index(drop=True)
+
 df = df[
     ~(
-        (df["APPROVAL_1"].str.upper() == "REJECTED") |
+        (df["APPROVAL_1"].str.upper() == "REJECTED") &
         (df["APPROVAL_2"].str.upper() == "REJECTED")
     )
 ].reset_index(drop=True)
+
 
 # --------------------------
 # DISPLAY TABLE
