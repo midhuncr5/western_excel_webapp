@@ -978,19 +978,38 @@ st.set_page_config(
 # --------------------------
 # SCROLL RESTORATION
 # --------------------------
-st.markdown(
-    """
-    <script>
-    document.addEventListener("DOMContentLoaded", function() {
-        let pos = sessionStorage.getItem("scroll_pos");
-        if(pos) window.scrollTo(0, parseInt(pos));
-    });
-    window.addEventListener("scroll", function() {
-        sessionStorage.setItem("scroll_pos", window.scrollY);
-    });
-    </script>
-    """, unsafe_allow_html=True
+# st.markdown(
+#     """
+#     <script>
+#     document.addEventListener("DOMContentLoaded", function() {
+#         let pos = sessionStorage.getItem("scroll_pos");
+#         if(pos) window.scrollTo(0, parseInt(pos));
+#     });
+#     window.addEventListener("scroll", function() {
+#         sessionStorage.setItem("scroll_pos", window.scrollY);
+#     });
+#     </script>
+#     """, unsafe_allow_html=True
+# )
+st.markdown("""
+<style>
+div[data-testid="stDataFrame"] {
+    overflow-x: hidden !important;
+}
+div[data-testid="stDataFrame"] td {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    max-width: 200px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.data_editor(
+    df.astype(str),
+    use_container_width=True,
+    hide_index=True
 )
+
 
 st.markdown("<h1 style='text-align:center;'>📊 Excel Data Management Panel</h1>", unsafe_allow_html=True)
 st.write("---")
