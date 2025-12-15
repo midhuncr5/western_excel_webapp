@@ -1004,11 +1004,11 @@ div[data-testid="stDataFrame"] td {
 </style>
 """, unsafe_allow_html=True)
 
-st.data_editor(
-    df.astype(str),
-    use_container_width=True,
-    hide_index=True
-)
+# st.data_editor(
+#     df.astype(str),
+#     use_container_width=True,
+#     hide_index=True
+# )
 
 
 st.markdown("<h1 style='text-align:center;'>📊 Excel Data Management Panel</h1>", unsafe_allow_html=True)
