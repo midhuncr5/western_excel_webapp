@@ -1378,7 +1378,52 @@ st.subheader("📋 Approval Cards")
 #         key=f"a2_{i}"
 #     )
 
-st.subheader("📋 Approval Cards (4 per row)")
+# st.subheader("📋 Approval Cards (4 per row)")
+
+# cols = st.columns(4)
+
+# for i, row in df_display.iterrows():
+
+#     bg, border = card_color(row["APPROVAL_1"], row["APPROVAL_2"])
+
+#     with cols[i % 4]:
+
+#         st.markdown(
+#             f"""
+#             <div style="
+#                 background:{bg};
+#                 border-left:6px solid {border};
+#                 border-radius:14px;
+#                 padding:14px;
+#                 margin-bottom:16px;
+#                 min-height:260px;
+#                 box-shadow:0 4px 8px rgba(0,0,0,0.08);
+#             ">
+#                 <h4 style="margin-bottom:6px;">👤 {row['BENEFICIARY NAME']}</h4>
+#                 <p><b>Project:</b> {row['PROJECT_NAME']}</p>
+#                 <p><b>Category:</b> {row['CATEGORY']}</p>
+#                 <p><b>Amount:</b> ₹{row['FINAL AMOUNT']}</p>
+#                 <p><b>Date:</b> {row['DATE']}</p>
+#             </div>
+#             """,
+#             unsafe_allow_html=True
+#         )
+
+#         df_display.at[i, "APPROVAL_1"] = st.selectbox(
+#             "Approval 1",
+#             status_options,
+#             index=safe_index(status_options, row["APPROVAL_1"]),
+#             key=f"a1_{i}"
+#         )
+
+#         df_display.at[i, "APPROVAL_2"] = st.selectbox(
+#             "Approval 2",
+#             status_options,
+#             index=safe_index(status_options, row["APPROVAL_2"]),
+#             key=f"a2_{i}"
+#         )
+
+st.subheader("📋 Approval Cards")
 
 cols = st.columns(4)
 
@@ -1392,36 +1437,39 @@ for i, row in df_display.iterrows():
             f"""
             <div style="
                 background:{bg};
-                border-left:6px solid {border};
-                border-radius:14px;
-                padding:14px;
-                margin-bottom:16px;
-                min-height:260px;
-                box-shadow:0 4px 8px rgba(0,0,0,0.08);
+                border-left:4px solid {border};
+                border-radius:10px;
+                padding:8px 10px;
+                margin-bottom:8px;
+                box-shadow:0 2px 4px rgba(0,0,0,0.06);
+                font-size:13px;
             ">
-                <h4 style="margin-bottom:6px;">👤 {row['BENEFICIARY NAME']}</h4>
-                <p><b>Project:</b> {row['PROJECT_NAME']}</p>
-                <p><b>Category:</b> {row['CATEGORY']}</p>
-                <p><b>Amount:</b> ₹{row['FINAL AMOUNT']}</p>
-                <p><b>Date:</b> {row['DATE']}</p>
+                <div style="font-weight:600;">👤 {row['BENEFICIARY NAME']}</div>
+                <div>📁 {row['PROJECT_NAME']}</div>
+                <div>🏷 {row['CATEGORY']}</div>
+                <div>💰 ₹{row['FINAL AMOUNT']}</div>
+                <div>📅 {row['DATE']}</div>
             </div>
             """,
             unsafe_allow_html=True
         )
 
         df_display.at[i, "APPROVAL_1"] = st.selectbox(
-            "Approval 1",
+            "A1",
             status_options,
             index=safe_index(status_options, row["APPROVAL_1"]),
-            key=f"a1_{i}"
+            key=f"a1_{i}",
+            label_visibility="collapsed"
         )
 
         df_display.at[i, "APPROVAL_2"] = st.selectbox(
-            "Approval 2",
+            "A2",
             status_options,
             index=safe_index(status_options, row["APPROVAL_2"]),
-            key=f"a2_{i}"
+            key=f"a2_{i}",
+            label_visibility="collapsed"
         )
+
 
 
     st.write("---")
