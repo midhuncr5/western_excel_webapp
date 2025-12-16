@@ -1212,36 +1212,43 @@ st.set_page_config(
 )
 
 # --------------------------
-# SCROLL RESTORATION
+# SAFE INDEX FUNCTION
 # --------------------------
-st.markdown(
-    """
-    <script>
-    document.addEventListener("DOMContentLoaded", function() {
-        let pos = sessionStorage.getItem("scroll_pos");
-        if(pos) window.scrollTo(0, parseInt(pos));
-    });
-    window.addEventListener("scroll", function() {
-        sessionStorage.setItem("scroll_pos", window.scrollY);
-    });
-    </script>
-    """,
-    unsafe_allow_html=True
-)
+def safe_index(options, value):
+    if pd.isna(value):
+        return 0
+    value = str(value).strip().upper()
+    return options.index(value) if value in options else 0
 
-st.markdown("<h1 style='text-align:center;'>📊 Excel Data Management Panel</h1>", unsafe_allow_html=True)
+# --------------------------
+# COLOR DECISION
+# --------------------------
+def card_color(a1, a2):
+    a1 = str(a1).upper()
+    a2 = str(a2).upper()
+
+    if a1 == "REJECTED" or a2 == "REJECTED":
+        return "#ffe5e5", "#cc0000"   # red
+    if a1 == "ACCEPTED" and a2 == "ACCEPTED":
+        return "#e6ffea", "#1a7f37"   # green
+    return "#f5f5f5", "#333333"       # neutral
+
+# --------------------------
+# HEADER
+# --------------------------
+st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Panel</h1>", unsafe_allow_html=True)
 st.write("---")
 
 # --------------------------
 # LOAD SECRETS
 # --------------------------
-if "SERVICE_ACCOUNT_JSON" not in st.secrets or "FILE_ID" not in st.secrets or "SHEET_FILE_ID" not in st.secrets:
-    st.error("Add SERVICE_ACCOUNT_JSON, FILE_ID, SHEET_FILE_ID to Streamlit secrets!")
+if not all(k in st.secrets for k in ["SERVICE_ACCOUNT_JSON", "FILE_ID", "SHEET_FILE_ID"]):
+    st.error("Missing Streamlit secrets")
     st.stop()
 
 json_key = json.loads(st.secrets["SERVICE_ACCOUNT_JSON"])
-FILE_ID = st.secrets["FILE_ID"].strip()
-SHEET_FILE_ID = st.secrets["SHEET_FILE_ID"].strip()
+FILE_ID = st.secrets["FILE_ID"]
+SHEET_FILE_ID = st.secrets["SHEET_FILE_ID"]
 FOLDER_ID = "1PnU8vSLG6w30kCfCb9Ho4lNqoCYwrShH"
 
 SCOPES = [
@@ -1257,7 +1264,7 @@ gspread_client = gspread.authorize(creds)
 # DOWNLOAD EXCEL
 # --------------------------
 @st.cache_data(ttl=60)
-def download_excel_as_df(file_id):
+def download_excel(file_id):
     request = drive_service.files().get_media(fileId=file_id)
     fh = io.BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
@@ -1270,7 +1277,7 @@ def download_excel_as_df(file_id):
 # --------------------------
 # UPLOAD EXCEL
 # --------------------------
-def upload_excel_from_df(file_id, df):
+def upload_excel(file_id, df):
     out = io.BytesIO()
     df.to_excel(out, index=False, engine="openpyxl")
     out.seek(0)
@@ -1290,49 +1297,40 @@ def upload_excel_from_df(file_id, df):
 # --------------------------
 if "df" not in st.session_state:
     with st.spinner("Downloading Excel..."):
-        st.session_state.df = download_excel_as_df(FILE_ID)
+        df = download_excel(FILE_ID)
         for col in ["APPROVAL_1", "APPROVAL_2"]:
-            st.session_state.df[col] = st.session_state.df.get(col, "").astype(str).fillna("")
+            df[col] = df.get(col, "").astype(str).str.upper().str.strip()
+            df[col] = df[col].where(df[col].isin(["ACCEPTED", "REJECTED"]), "")
+        st.session_state.df = df
 
 df = st.session_state.df
 
 # --------------------------
-# FILTER REJECTED (BOTH)
+# REMOVE BOTH REJECTED
 # --------------------------
 df = df[
-    ~(
-        (df["APPROVAL_1"].str.upper() == "REJECTED") &
-        (df["APPROVAL_2"].str.upper() == "REJECTED")
-    )
+    ~((df["APPROVAL_1"] == "REJECTED") & (df["APPROVAL_2"] == "REJECTED"))
 ].reset_index(drop=True)
 
 # --------------------------
 # DISPLAY COLUMNS
 # --------------------------
-DISPLAY_COLUMN_ORDER = [
-    "STATUS_MATCHED_ESTIMATION", "GST %", "TDS %", "GST (Yes/No)",
-    "TDS (Yes/No)", "BENEFICIARY PAN", "BENEFICIARY GSTIN",
-    "BENEFICIARY ACCOUNT NO", "FINAL AMOUNT", "PROJECT_NAME",
-    "CATEGORY", "FIXED_AMOUNT", "BALANCE_AMOUNT",
-    "ADJUSTMENT_AMOUNT", "BASIC_AMOUNT",
-    "APPROVAL_1", "APPROVAL_2",
-    "BENEFICIARY NAME", "NARRATION", "Remarks", "DATE"
+DISPLAY_COLUMNS = [
+    "BENEFICIARY NAME", "PROJECT_NAME", "CATEGORY",
+    "FINAL AMOUNT", "DATE",
+    "APPROVAL_1", "APPROVAL_2"
 ]
 
-df_display = df[DISPLAY_COLUMN_ORDER].copy()
+df_display = df[DISPLAY_COLUMNS].copy()
 status_options = ["", "ACCEPTED", "REJECTED"]
 
 # --------------------------
 # SEARCH
 # --------------------------
 search = st.text_input("🔍 Search")
-
 if search:
     df_display = df_display[
-        df_display.apply(
-            lambda r: r.astype(str).str.contains(search, case=False).any(),
-            axis=1
-        )
+        df_display.apply(lambda r: r.astype(str).str.contains(search, case=False).any(), axis=1)
     ]
 
 # --------------------------
@@ -1341,56 +1339,57 @@ if search:
 st.subheader("📋 Approval Cards")
 
 for i, row in df_display.iterrows():
-    with st.container():
-        st.markdown(
-            f"""
-            <div style="
-                border-radius:14px;
-                padding:16px;
-                margin-bottom:16px;
-                background:#ffffff;
-                box-shadow:0 4px 10px rgba(0,0,0,0.08);
-            ">
-                <h4>👤 {row['BENEFICIARY NAME']}</h4>
-                <p><b>Project:</b> {row['PROJECT_NAME']}</p>
-                <p><b>Category:</b> {row['CATEGORY']}</p>
-                <p><b>Final Amount:</b> ₹{row['FINAL AMOUNT']}</p>
-                <p><b>Date:</b> {row['DATE']}</p>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
 
-        c1, c2 = st.columns(2)
+    bg, border = card_color(row["APPROVAL_1"], row["APPROVAL_2"])
 
-        df_display.at[i, "APPROVAL_1"] = c1.selectbox(
-            "Approval 1",
-            status_options,
-            index=status_options.index(row["APPROVAL_1"]),
-            key=f"a1_{i}"
-        )
+    st.markdown(
+        f"""
+        <div style="
+            background:{bg};
+            border-left:8px solid {border};
+            border-radius:14px;
+            padding:16px;
+            margin-bottom:16px;
+            box-shadow:0 4px 8px rgba(0,0,0,0.08);
+        ">
+            <h4>👤 {row['BENEFICIARY NAME']}</h4>
+            <p><b>Project:</b> {row['PROJECT_NAME']}</p>
+            <p><b>Category:</b> {row['CATEGORY']}</p>
+            <p><b>Final Amount:</b> ₹{row['FINAL AMOUNT']}</p>
+            <p><b>Date:</b> {row['DATE']}</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-        df_display.at[i, "APPROVAL_2"] = c2.selectbox(
-            "Approval 2",
-            status_options,
-            index=status_options.index(row["APPROVAL_2"]),
-            key=f"a2_{i}"
-        )
+    c1, c2 = st.columns(2)
 
-        st.write("---")
+    df_display.at[i, "APPROVAL_1"] = c1.selectbox(
+        "Approval 1",
+        status_options,
+        index=safe_index(status_options, row["APPROVAL_1"]),
+        key=f"a1_{i}"
+    )
+
+    df_display.at[i, "APPROVAL_2"] = c2.selectbox(
+        "Approval 2",
+        status_options,
+        index=safe_index(status_options, row["APPROVAL_2"]),
+        key=f"a2_{i}"
+    )
+
+    st.write("---")
 
 # --------------------------
 # SAVE
 # --------------------------
-if st.button("💾 Save Changes to Drive"):
-    for col in ["APPROVAL_1", "APPROVAL_2"]:
-        df.loc[df_display.index, col] = df_display[col]
-
-    upload_excel_from_df(FILE_ID, df)
-    st.success("✅ Excel updated successfully")
+if st.button("💾 Save Changes"):
+    df.loc[df_display.index, ["APPROVAL_1", "APPROVAL_2"]] = df_display[["APPROVAL_1", "APPROVAL_2"]]
+    upload_excel(FILE_ID, df)
+    st.success("✅ Saved to Google Drive")
 
 # --------------------------
-# PROJECT-WISE EXPENSE
+# PROJECT-WISE CHART
 # --------------------------
 st.write("---")
 st.subheader("💼 Project-wise Highest Expense Categories")
@@ -1399,7 +1398,6 @@ sh = gspread_client.open_by_key(SHEET_FILE_ID)
 ws = sh.sheet1
 expense_df = pd.DataFrame(ws.get_all_records())
 
-expense_df["PROJECT_NAME"] = expense_df["PROJECT_NAME"].astype(str).str.upper()
 expense_df["FINAL AMOUNT"] = pd.to_numeric(expense_df["FINAL AMOUNT"], errors="coerce").fillna(0)
 expense_df["DATE"] = pd.to_datetime(expense_df["DATE"], errors="coerce")
 
@@ -1410,11 +1408,11 @@ expense_df = expense_df[
 ]
 
 grp = expense_df.groupby(["PROJECT_NAME", "CATEGORY"])["FINAL AMOUNT"].sum().reset_index()
-top_expenses = grp.sort_values("FINAL AMOUNT", ascending=False).groupby("PROJECT_NAME").head(1)
+top_exp = grp.sort_values("FINAL AMOUNT", ascending=False).groupby("PROJECT_NAME").head(1)
 
-st.dataframe(top_expenses, use_container_width=True)
+st.dataframe(top_exp, use_container_width=True)
 
-chart = alt.Chart(top_expenses).mark_bar().encode(
+chart = alt.Chart(top_exp).mark_bar().encode(
     x="PROJECT_NAME:N",
     y="FINAL AMOUNT:Q",
     color="CATEGORY:N",
@@ -1423,7 +1421,7 @@ chart = alt.Chart(top_expenses).mark_bar().encode(
 
 st.altair_chart(chart, use_container_width=True)
 
-st.info("This app overwrites the Drive file. Enable backups for multi-user usage.")
+st.info("🟢 Green = Approved | 🔴 Red = Rejected | ⚪ Pending")
 
 
 
