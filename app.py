@@ -1472,7 +1472,7 @@ for i, row in df_display.iterrows():
 
 
 
-    st.write("---")
+    # st.write("---")
 
 # --------------------------
 # SAVE
