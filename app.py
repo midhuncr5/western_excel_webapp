@@ -1198,71 +1198,81 @@ import streamlit as st
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
-import gspread
-import altair as alt
 
-# --------------------------
+# --------------------------------------------------
 # PAGE CONFIG
-# --------------------------
+# --------------------------------------------------
 st.set_page_config(
-    page_title="Drive Excel Sync",
+    page_title="Excel Approval Panel",
     page_icon="📝",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
-# --------------------------
-# SAFE INDEX FUNCTION
-# --------------------------
+st.markdown("<h2 style='text-align:center;'>📊 Excel Approval Dashboard</h2>", unsafe_allow_html=True)
+
+# --------------------------------------------------
+# HELPERS
+# --------------------------------------------------
 def safe_index(options, value):
     if pd.isna(value):
         return 0
     value = str(value).strip().upper()
     return options.index(value) if value in options else 0
 
-# --------------------------
-# COLOR DECISION
-# --------------------------
+
 def card_color(a1, a2):
     a1 = str(a1).upper()
     a2 = str(a2).upper()
-
     if a1 == "REJECTED" or a2 == "REJECTED":
         return "#ffe5e5", "#cc0000"   # red
     if a1 == "ACCEPTED" and a2 == "ACCEPTED":
         return "#e6ffea", "#1a7f37"   # green
-    return "#f5f5f5", "#333333"       # neutral
+    return "#f6f6f6", "#999999"       # neutral
 
-# --------------------------
-# HEADER
-# --------------------------
-st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Panel</h1>", unsafe_allow_html=True)
-st.write("---")
+# --------------------------------------------------
+# CONFIG
+# --------------------------------------------------
+STATUS_OPTIONS = ["", "ACCEPTED", "REJECTED"]
+YES_NO = ["Yes", "No"]
 
-# --------------------------
-# LOAD SECRETS
-# --------------------------
-if not all(k in st.secrets for k in ["SERVICE_ACCOUNT_JSON", "FILE_ID", "SHEET_FILE_ID"]):
-    st.error("Missing Streamlit secrets")
-    st.stop()
-
-json_key = json.loads(st.secrets["SERVICE_ACCOUNT_JSON"])
-FILE_ID = st.secrets["FILE_ID"]
-SHEET_FILE_ID = st.secrets["SHEET_FILE_ID"]
-FOLDER_ID = "1PnU8vSLG6w30kCfCb9Ho4lNqoCYwrShH"
-
-SCOPES = [
-    "https://www.googleapis.com/auth/drive",
-    "https://www.googleapis.com/auth/spreadsheets"
+DISPLAY_COLUMN_ORDER = [
+    "STATUS_MATCHED_ESTIMATION", "GST %", "TDS %", "GST (Yes/No)",
+    "TDS (Yes/No)", "BENEFICIARY PAN", "BENEFICIARY GSTIN",
+    "BENEFICIARY ACCOUNT NO", "FINAL AMOUNT", "PROJECT_NAME",
+    "CATEGORY", "FIXED_AMOUNT", "BALANCE_AMOUNT",
+    "ADJUSTMENT_AMOUNT", "BASIC_AMOUNT",
+    "APPROVAL_1", "APPROVAL_2",
+    "BENEFICIARY NAME", "NARRATION", "Remarks", "DATE"
 ]
 
+EDITABLE_FIELDS = {
+    "GST %": "number",
+    "TDS %": "number",
+    "GST (Yes/No)": "select",
+    "TDS (Yes/No)": "select",
+    "FIXED_AMOUNT": "number",
+    "BALANCE_AMOUNT": "number",
+    "ADJUSTMENT_AMOUNT": "number",
+    "BASIC_AMOUNT": "number",
+    "NARRATION": "text",
+    "Remarks": "text",
+    "APPROVAL_1": "select",
+    "APPROVAL_2": "select",
+}
+
+# --------------------------------------------------
+# LOAD SECRETS
+# --------------------------------------------------
+json_key = json.loads(st.secrets["SERVICE_ACCOUNT_JSON"])
+FILE_ID = st.secrets["FILE_ID"]
+
+SCOPES = ["https://www.googleapis.com/auth/drive"]
 creds = Credentials.from_service_account_info(json_key, scopes=SCOPES)
 drive_service = build("drive", "v3", credentials=creds)
-gspread_client = gspread.authorize(creds)
 
-# --------------------------
-# DOWNLOAD EXCEL
-# --------------------------
+# --------------------------------------------------
+# GOOGLE DRIVE FUNCTIONS
+# --------------------------------------------------
 @st.cache_data(ttl=60)
 def download_excel(file_id):
     request = drive_service.files().get_media(fileId=file_id)
@@ -1274,9 +1284,7 @@ def download_excel(file_id):
     fh.seek(0)
     return pd.read_excel(fh, engine="openpyxl")
 
-# --------------------------
-# UPLOAD EXCEL
-# --------------------------
+
 def upload_excel(file_id, df):
     out = io.BytesIO()
     df.to_excel(out, index=False, engine="openpyxl")
@@ -1292,138 +1300,35 @@ def upload_excel(file_id, df):
         supportsAllDrives=True
     ).execute()
 
-# --------------------------
-# SESSION STATE
-# --------------------------
+# --------------------------------------------------
+# LOAD DATA
+# --------------------------------------------------
 if "df" not in st.session_state:
-    with st.spinner("Downloading Excel..."):
-        df = download_excel(FILE_ID)
-        for col in ["APPROVAL_1", "APPROVAL_2"]:
-            df[col] = df.get(col, "").astype(str).str.upper().str.strip()
-            df[col] = df[col].where(df[col].isin(["ACCEPTED", "REJECTED"]), "")
-        st.session_state.df = df
+    df = download_excel(FILE_ID)
+    for c in ["APPROVAL_1", "APPROVAL_2"]:
+        df[c] = df.get(c, "").astype(str).str.upper().str.strip()
+        df[c] = df[c].where(df[c].isin(["ACCEPTED", "REJECTED"]), "")
+    st.session_state.df = df
 
 df = st.session_state.df
+df_display = df[DISPLAY_COLUMN_ORDER].copy()
 
-# --------------------------
-# REMOVE BOTH REJECTED
-# --------------------------
-df = df[
-    ~((df["APPROVAL_1"] == "REJECTED") & (df["APPROVAL_2"] == "REJECTED"))
-].reset_index(drop=True)
-
-# --------------------------
-# DISPLAY COLUMNS
-# --------------------------
-DISPLAY_COLUMNS = [
-    "BENEFICIARY NAME", "PROJECT_NAME", "CATEGORY",
-    "FINAL AMOUNT", "DATE",
-    "APPROVAL_1", "APPROVAL_2"
-]
-
-df_display = df[DISPLAY_COLUMNS].copy()
-status_options = ["", "ACCEPTED", "REJECTED"]
-
-# --------------------------
+# --------------------------------------------------
 # SEARCH
-# --------------------------
+# --------------------------------------------------
 search = st.text_input("🔍 Search")
 if search:
     df_display = df_display[
-        df_display.apply(lambda r: r.astype(str).str.contains(search, case=False).any(), axis=1)
+        df_display.apply(
+            lambda r: r.astype(str).str.contains(search, case=False).any(),
+            axis=1
+        )
     ]
 
-# --------------------------
-# CARD VIEW
-# --------------------------
-st.subheader("📋 Approval Cards")
-
-# for i, row in df_display.iterrows():
-
-#     bg, border = card_color(row["APPROVAL_1"], row["APPROVAL_2"])
-
-#     st.markdown(
-#         f"""
-#         <div style="
-#             background:{bg};
-#             border-left:8px solid {border};
-#             border-radius:14px;
-#             padding:16px;
-#             margin-bottom:16px;
-#             box-shadow:0 4px 8px rgba(0,0,0,0.08);
-#         ">
-#             <h4>👤 {row['BENEFICIARY NAME']}</h4>
-#             <p><b>Project:</b> {row['PROJECT_NAME']}</p>
-#             <p><b>Category:</b> {row['CATEGORY']}</p>
-#             <p><b>Final Amount:</b> ₹{row['FINAL AMOUNT']}</p>
-#             <p><b>Date:</b> {row['DATE']}</p>
-#         </div>
-#         """,
-#         unsafe_allow_html=True
-#     )
-
-#     c1, c2 = st.columns(2)
-
-#     df_display.at[i, "APPROVAL_1"] = c1.selectbox(
-#         "Approval 1",
-#         status_options,
-#         index=safe_index(status_options, row["APPROVAL_1"]),
-#         key=f"a1_{i}"
-#     )
-
-#     df_display.at[i, "APPROVAL_2"] = c2.selectbox(
-#         "Approval 2",
-#         status_options,
-#         index=safe_index(status_options, row["APPROVAL_2"]),
-#         key=f"a2_{i}"
-#     )
-
-# st.subheader("📋 Approval Cards (4 per row)")
-
-# cols = st.columns(4)
-
-# for i, row in df_display.iterrows():
-
-#     bg, border = card_color(row["APPROVAL_1"], row["APPROVAL_2"])
-
-#     with cols[i % 4]:
-
-#         st.markdown(
-#             f"""
-#             <div style="
-#                 background:{bg};
-#                 border-left:6px solid {border};
-#                 border-radius:14px;
-#                 padding:14px;
-#                 margin-bottom:16px;
-#                 min-height:260px;
-#                 box-shadow:0 4px 8px rgba(0,0,0,0.08);
-#             ">
-#                 <h4 style="margin-bottom:6px;">👤 {row['BENEFICIARY NAME']}</h4>
-#                 <p><b>Project:</b> {row['PROJECT_NAME']}</p>
-#                 <p><b>Category:</b> {row['CATEGORY']}</p>
-#                 <p><b>Amount:</b> ₹{row['FINAL AMOUNT']}</p>
-#                 <p><b>Date:</b> {row['DATE']}</p>
-#             </div>
-#             """,
-#             unsafe_allow_html=True
-#         )
-
-#         df_display.at[i, "APPROVAL_1"] = st.selectbox(
-#             "Approval 1",
-#             status_options,
-#             index=safe_index(status_options, row["APPROVAL_1"]),
-#             key=f"a1_{i}"
-#         )
-
-#         df_display.at[i, "APPROVAL_2"] = st.selectbox(
-#             "Approval 2",
-#             status_options,
-#             index=safe_index(status_options, row["APPROVAL_2"]),
-#             key=f"a2_{i}"
-#         )
-
-st.subheader("📋 Approval Cards")
+# --------------------------------------------------
+# CARD GRID (4 PER ROW)
+# --------------------------------------------------
+st.subheader("📋 Editable Approval Cards")
 
 cols = st.columns(4)
 
@@ -1433,90 +1338,71 @@ for i, row in df_display.iterrows():
 
     with cols[i % 4]:
 
+        # ----- CARD HEADER -----
         st.markdown(
             f"""
             <div style="
                 background:{bg};
                 border-left:4px solid {border};
                 border-radius:10px;
-                padding:8px 10px;
-                margin-bottom:8px;
+                padding:8px;
+                margin-bottom:6px;
+                font-size:12px;
                 box-shadow:0 2px 4px rgba(0,0,0,0.06);
-                font-size:13px;
             ">
-                <div style="font-weight:600;">👤 {row['BENEFICIARY NAME']}</div>
-                <div>📁 {row['PROJECT_NAME']}</div>
-                <div>🏷 {row['CATEGORY']}</div>
-                <div>💰 ₹{row['FINAL AMOUNT']}</div>
-                <div>📅 {row['DATE']}</div>
+                <b>{row['BENEFICIARY NAME']}</b><br>
+                ₹ {row['FINAL AMOUNT']}<br>
+                {row['PROJECT_NAME']} | {row['CATEGORY']}
             </div>
             """,
             unsafe_allow_html=True
         )
 
-        df_display.at[i, "APPROVAL_1"] = st.selectbox(
-            "A1",
-            status_options,
-            index=safe_index(status_options, row["APPROVAL_1"]),
-            key=f"a1_{i}",
-            label_visibility="collapsed"
-        )
+        # ----- ALL FIELDS -----
+        for col in DISPLAY_COLUMN_ORDER:
 
-        df_display.at[i, "APPROVAL_2"] = st.selectbox(
-            "A2",
-            status_options,
-            index=safe_index(status_options, row["APPROVAL_2"]),
-            key=f"a2_{i}",
-            label_visibility="collapsed"
-        )
+            value = row[col]
 
+            if col in EDITABLE_FIELDS:
 
+                field_type = EDITABLE_FIELDS[col]
 
-    # st.write("---")
+                if field_type == "text":
+                    df_display.at[i, col] = st.text_input(
+                        col,
+                        value,
+                        key=f"{col}_{i}"
+                    )
 
-# --------------------------
+                elif field_type == "number":
+                    df_display.at[i, col] = st.number_input(
+                        col,
+                        value=float(value) if str(value).strip() else 0.0,
+                        key=f"{col}_{i}"
+                    )
+
+                elif field_type == "select":
+                    options = STATUS_OPTIONS if "APPROVAL" in col else YES_NO
+                    df_display.at[i, col] = st.selectbox(
+                        col,
+                        options,
+                        index=safe_index(options, value),
+                        key=f"{col}_{i}"
+                    )
+
+            else:
+                st.markdown(
+                    f"<div style='font-size:11.5px;'><b>{col}:</b> {value}</div>",
+                    unsafe_allow_html=True
+                )
+
+# --------------------------------------------------
 # SAVE
-# --------------------------
+# --------------------------------------------------
 if st.button("💾 Save Changes"):
-    df.loc[df_display.index, ["APPROVAL_1", "APPROVAL_2"]] = df_display[["APPROVAL_1", "APPROVAL_2"]]
+    df.loc[df_display.index, DISPLAY_COLUMN_ORDER] = df_display[DISPLAY_COLUMN_ORDER]
     upload_excel(FILE_ID, df)
     st.success("✅ Saved to Google Drive")
-
-# --------------------------
-# PROJECT-WISE CHART
-# --------------------------
-st.write("---")
-st.subheader("💼 Project-wise Highest Expense Categories")
-
-sh = gspread_client.open_by_key(SHEET_FILE_ID)
-ws = sh.sheet1
-expense_df = pd.DataFrame(ws.get_all_records())
-
-expense_df["FINAL AMOUNT"] = pd.to_numeric(expense_df["FINAL AMOUNT"], errors="coerce").fillna(0)
-expense_df["DATE"] = pd.to_datetime(expense_df["DATE"], errors="coerce")
-
-now = pd.Timestamp.now()
-expense_df = expense_df[
-    (expense_df["DATE"].dt.month == now.month) &
-    (expense_df["DATE"].dt.year == now.year)
-]
-
-grp = expense_df.groupby(["PROJECT_NAME", "CATEGORY"])["FINAL AMOUNT"].sum().reset_index()
-top_exp = grp.sort_values("FINAL AMOUNT", ascending=False).groupby("PROJECT_NAME").head(1)
-
-st.dataframe(top_exp, use_container_width=True)
-
-chart = alt.Chart(top_exp).mark_bar().encode(
-    x="PROJECT_NAME:N",
-    y="FINAL AMOUNT:Q",
-    color="CATEGORY:N",
-    tooltip=["PROJECT_NAME", "CATEGORY", "FINAL AMOUNT"]
-).properties(height=400)
-
-st.altair_chart(chart, use_container_width=True)
-
-st.info("🟢 Green = Approved | 🔴 Red = Rejected | ⚪ Pending")
-
 
 
 
