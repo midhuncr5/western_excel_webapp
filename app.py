@@ -3930,21 +3930,50 @@ def upload_excel_to_github(df):
 def apply_adjustment_logic(df):
     df = df.copy()
 
+    # Clean amounts
+    df["BASIC_AMOUNT"] = (
+        df["BASIC_AMOUNT"]
+        .astype(str)
+        .str.replace(",", "", regex=False)
+        .str.replace("₹", "", regex=False)
+        .str.strip()
+    )
     df["BASIC_AMOUNT"] = pd.to_numeric(df["BASIC_AMOUNT"], errors="coerce").fillna(0)
-    df["ADJUSTMENT_AMOUNT"] = pd.to_numeric(df["ADJUSTMENT_AMOUNT"], errors="coerce").fillna(0)
 
-    mask = (
-        df["STATUS_MATCHED_ESTIMATION"]
+    df["ADJUSTMENT_AMOUNT"] = pd.to_numeric(
+        df.get("ADJUSTMENT_AMOUNT", 0), errors="coerce"
+    ).fillna(0)
+
+    # Normalize status columns
+    status_1 = (
+        df.get("STATUS_MATCHED_ESTIMATION", "")
         .astype(str)
         .str.upper()
+        .str.replace(r"\s+", " ", regex=True)
         .str.strip()
-        .eq("ESTIMATION NOT MATCHED")
+    )
+
+    status_2 = (
+        df.get("STATUS", "")
+        .astype(str)
+        .str.upper()
+        .str.replace(r"\s+", " ", regex=True)
+        .str.strip()
+    )
+
+    # FINAL SAFE MASK
+    mask = (
+        (
+            status_1.str.contains("NOT MATCH", na=False)
+            | status_2.str.contains("NOT MATCH", na=False)
+        )
         & (df["BASIC_AMOUNT"] > 0)
     )
 
     df.loc[mask, "ADJUSTMENT_AMOUNT"] = df.loc[mask, "BASIC_AMOUNT"]
 
     return df
+
 
 # ---------------------------------------------------
 # INITIAL LOAD (RUNS ONCE)
