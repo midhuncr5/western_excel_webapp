@@ -2654,7 +2654,7 @@ required_secrets = [
     "GITHUB_REPO",
     "GITHUB_FILE_PATH",
     "FILE_ID",
-    "GDRIVE_SERVICE_ACCOUNT"
+    "SERVICE_ACCOUNT_JSON"
 ]
 
 for s in required_secrets:
