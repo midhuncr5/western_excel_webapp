@@ -1297,20 +1297,30 @@ df_ui = df[
     )
 ].copy()
 
+# DISPLAY_COLUMNS = [
+#     "ROW_ID",
+#     "PROJECT_NAME",
+#     "CATEGORY",
+#     "FINAL AMOUNT",
+#     "BASIC_AMOUNT",
+#     "ADJUSTMENT_AMOUNT",
+#     "APPROVAL_1",
+#     "APPROVAL_2",
+#     "BENEFICIARY NAME",
+#     "NARRATION",
+#     "Remarks",
+#     "DATE"
+# ]
+
 DISPLAY_COLUMNS = [
-    "ROW_ID",
-    "PROJECT_NAME",
-    "CATEGORY",
-    "FINAL AMOUNT",
-    "BASIC_AMOUNT",
-    "ADJUSTMENT_AMOUNT",
-    "APPROVAL_1",
-    "APPROVAL_2",
-    "BENEFICIARY NAME",
-    "NARRATION",
-    "Remarks",
-    "DATE"
-]
+     "STATUS_MATCHED_ESTIMATION", "GST %", "TDS %", "GST (Yes/No)",
+     "TDS (Yes/No)", "BENEFICIARY PAN",
+     "BENEFICIARY GSTIN", "BENEFICIARY ACCOUNT NO", "FINAL AMOUNT", "PROJECT_NAME",
+     "CATEGORY", "FIXED_AMOUNT", "BALANCE_AMOUNT", "ADJUSTMENT_AMOUNT", "BASIC_AMOUNT",
+     "APPROVAL_1", "APPROVAL_2", "BENEFICIARY NAME", "NARRATION", "Remarks","DATE"
+ ]
+
+
 
 df_ui = df_ui[DISPLAY_COLUMNS]
 
