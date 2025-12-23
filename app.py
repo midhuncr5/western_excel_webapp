@@ -3573,27 +3573,99 @@ def download_excel_from_github():
     content = base64.b64decode(r.json()["content"])
     return pd.read_excel(io.BytesIO(content), engine="openpyxl")
 
+# def upload_excel_to_github(df):
+#     out = io.BytesIO()
+#     df.to_excel(out, index=False, engine="openpyxl")
+#     out.seek(0)
+
+#     content_b64 = base64.b64encode(out.read()).decode()
+
+#     # Refresh SHA every time
+#     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
+#     r_sha = requests.get(url, headers=HEADERS)
+#     r_sha.raise_for_status()
+#     sha = r_sha.json()["sha"]
+
+#     payload = {
+#         "message": "Updated via Streamlit Approval System",
+#         "content": content_b64,
+#         "sha": sha
+#     }
+
+#     r = requests.put(url, headers=HEADERS, data=json.dumps(payload))
+#     r.raise_for_status()
+
+# ---------------------------------------------------
+# GITHUB FUNCTIONS (WRITE-ONLY)
+# ---------------------------------------------------
 def upload_excel_to_github(df):
+    # FORCE numeric write
+    df["BASIC_AMOUNT"] = pd.to_numeric(df["BASIC_AMOUNT"], errors="coerce").fillna(0)
+    df["ADJUSTMENT_AMOUNT"] = pd.to_numeric(df["ADJUSTMENT_AMOUNT"], errors="coerce").fillna(0)
+
     out = io.BytesIO()
-    df.to_excel(out, index=False, engine="openpyxl")
+    with pd.ExcelWriter(out, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False)
     out.seek(0)
 
     content_b64 = base64.b64encode(out.read()).decode()
 
-    # Refresh SHA every time
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
     r_sha = requests.get(url, headers=HEADERS)
     r_sha.raise_for_status()
-    sha = r_sha.json()["sha"]
 
     payload = {
-        "message": "Updated via Streamlit Approval System",
+        "message": "Auto-updated adjustment amount",
         "content": content_b64,
-        "sha": sha
+        "sha": r_sha.json()["sha"]
     }
 
-    r = requests.put(url, headers=HEADERS, data=json.dumps(payload))
+    r = requests.put(url, headers=HEADERS, json=payload)
     r.raise_for_status()
+
+
+# ---------------------------------------------------
+# ADJUSTMENT LOGIC (SAFE)
+# ---------------------------------------------------
+def apply_adjustment_logic(df):
+    def clean(series):
+        return (
+            series.astype(str)
+            .str.replace(",", "", regex=False)
+            .str.replace("₹", "", regex=False)
+            .str.strip()
+            .pipe(pd.to_numeric, errors="coerce")
+            .fillna(0)
+        )
+
+    df["BASIC_AMOUNT"] = clean(df.get("BASIC_AMOUNT", 0))
+    df["ADJUSTMENT_AMOUNT"] = 0.0   # 🔴 FORCE RESET
+
+    mask = (
+        df["STATUS_MATCHED_ESTIMATION"]
+        .fillna("")
+        .str.upper()
+        .str.strip()
+        .eq("ESTIMATION NOT MATCHED")
+        & (df["BASIC_AMOUNT"] > 0)
+    )
+
+    df.loc[mask, "ADJUSTMENT_AMOUNT"] = df.loc[mask, "BASIC_AMOUNT"]
+
+    return df
+
+
+# ---------------------------------------------------
+# INITIAL LOAD (Drive → Logic → GitHub → UI)
+# ---------------------------------------------------
+if st.session_state.df is None:
+    with st.spinner("🔄 Syncing from Drive..."):
+        df = download_excel_from_drive()
+        df = apply_adjustment_logic(df)
+
+        upload_excel_to_github(df)   # WRITE ONLY
+        st.session_state.df = df.copy()
+
 
 # ---------------------------------------------------
 # ADJUSTMENT LOGIC
