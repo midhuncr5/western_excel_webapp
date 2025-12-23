@@ -4075,6 +4075,249 @@
 # st.info("ℹ GitHub and Google Drive are now always in sync.")
 
 
+# import io
+# import json
+# import base64
+# import pandas as pd
+# import streamlit as st
+# import requests
+
+# from google.oauth2.service_account import Credentials
+# from googleapiclient.discovery import build
+# from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
+
+# # ---------------------------------------------------
+# # PAGE CONFIG
+# # ---------------------------------------------------
+# st.set_page_config(
+#     page_title="GitHub Excel Approval System",
+#     page_icon="📝",
+#     layout="wide"
+# )
+
+# st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management</h1>", unsafe_allow_html=True)
+# st.write("---")
+
+# # ---------------------------------------------------
+# # SECRETS
+# # ---------------------------------------------------
+# GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
+# GITHUB_REPO = st.secrets["GITHUB_REPO"]
+# GITHUB_FILE_PATH = st.secrets["GITHUB_FILE_PATH"]
+# FILE_ID = st.secrets["FILE_ID"]
+# SERVICE_ACCOUNT_JSON = st.secrets["SERVICE_ACCOUNT_JSON"]
+
+# HEADERS = {"Authorization": f"token {GITHUB_TOKEN}"}
+
+# # ---------------------------------------------------
+# # GOOGLE DRIVE
+# # ---------------------------------------------------
+# def get_drive_service():
+#     creds = Credentials.from_service_account_info(
+#         json.loads(SERVICE_ACCOUNT_JSON),
+#         scopes=["https://www.googleapis.com/auth/drive"]
+#     )
+#     return build("drive", "v3", credentials=creds)
+
+# def download_excel_from_drive():
+#     service = get_drive_service()
+#     fh = io.BytesIO()
+#     request = service.files().get_media(fileId=FILE_ID)
+#     MediaIoBaseDownload(fh, request).next_chunk()
+#     fh.seek(0)
+#     return pd.read_excel(fh, engine="openpyxl")
+
+# def upload_excel_to_drive(df):
+#     service = get_drive_service()
+#     out = io.BytesIO()
+#     df.to_excel(out, index=False, engine="openpyxl")
+#     out.seek(0)
+
+#     media = MediaIoBaseUpload(
+#         out,
+#         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+#     )
+#     service.files().update(fileId=FILE_ID, media_body=media).execute()
+
+# # ---------------------------------------------------
+# # GITHUB
+# # ---------------------------------------------------
+# def upload_excel_to_github(df):
+#     out = io.BytesIO()
+#     df.to_excel(out, index=False, engine="openpyxl")
+#     out.seek(0)
+
+#     content_b64 = base64.b64encode(out.read()).decode()
+
+#     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
+#     sha = requests.get(url, headers=HEADERS).json()["sha"]
+
+#     payload = {
+#         "message": "Updated approvals & adjustment via Streamlit",
+#         "content": content_b64,
+#         "sha": sha
+#     }
+
+#     r = requests.put(url, headers=HEADERS, json=payload)
+#     r.raise_for_status()
+
+# # ---------------------------------------------------
+# # ADJUSTMENT LOGIC (SINGLE SOURCE OF TRUTH)
+# # ---------------------------------------------------
+# def apply_adjustment_logic(df):
+#     df = df.copy()
+
+#     df["BASIC_AMOUNT"] = (
+#         df["BASIC_AMOUNT"]
+#         .astype(str)
+#         .str.replace(",", "", regex=False)
+#         .str.replace("₹", "", regex=False)
+#         .str.strip()
+#     )
+#     df["BASIC_AMOUNT"] = pd.to_numeric(df["BASIC_AMOUNT"], errors="coerce").fillna(0)
+
+#     df["ADJUSTMENT_AMOUNT"] = pd.to_numeric(
+#         df.get("ADJUSTMENT_AMOUNT", 0), errors="coerce"
+#     ).fillna(0)
+
+#     status_1 = (
+#         df.get("STATUS_MATCHED_ESTIMATION", "")
+#         .astype(str)
+#         .str.upper()
+#         .str.replace(r"\s+", " ", regex=True)
+#         .str.strip()
+#     )
+
+#     status_2 = (
+#         df.get("STATUS", "")
+#         .astype(str)
+#         .str.upper()
+#         .str.replace(r"\s+", " ", regex=True)
+#         .str.strip()
+#     )
+
+#     mask = (
+#         (
+#             status_1.str.contains("NOT MATCH", na=False)
+#             | status_2.str.contains("NOT MATCH", na=False)
+#         )
+#         & (df["BASIC_AMOUNT"] > 0)
+#     )
+
+#     df.loc[mask, "ADJUSTMENT_AMOUNT"] = df.loc[mask, "BASIC_AMOUNT"]
+
+#     return df
+
+# # ---------------------------------------------------
+# # INITIAL LOAD (RUNS ONCE)
+# # ---------------------------------------------------
+# if "df" not in st.session_state:
+#     with st.spinner("🔄 Loading Excel from Drive..."):
+#         df = download_excel_from_drive()
+#         df = apply_adjustment_logic(df)
+
+#         upload_excel_to_github(df)
+#         upload_excel_to_drive(df)
+
+#         st.session_state.df = df
+
+# df = st.session_state.df.copy()
+
+# # ---------------------------------------------------
+# # FILTER UI (VISUAL ONLY)
+# # ---------------------------------------------------
+# df_ui = df[
+#     ~(
+#         (df["APPROVAL_1"].astype(str).str.upper() == "REJECTED") &
+#         (df["APPROVAL_2"].astype(str).str.upper() == "REJECTED")
+#     )
+# ].copy()
+
+# # 🔑 PRESERVE ORIGINAL INDEX (NO ROW_ID)
+# df_ui["__index__"] = df_ui.index
+
+# # ---------------------------------------------------
+# # DISPLAY COLUMNS
+# # ---------------------------------------------------
+# DISPLAY_COLUMNS = [
+#     "__index__",
+#     "STATUS_MATCHED_ESTIMATION", "GST %", "TDS %",
+#     "GST (Yes/No)", "TDS (Yes/No)",
+#     "BENEFICIARY PAN", "BENEFICIARY GSTIN",
+#     "BENEFICIARY ACCOUNT NO", "FINAL AMOUNT",
+#     "PROJECT_NAME", "CATEGORY",
+#     "FIXED_AMOUNT", "BALANCE_AMOUNT",
+#     "ADJUSTMENT_AMOUNT", "BASIC_AMOUNT",
+#     "APPROVAL_1", "APPROVAL_2",
+#     "BENEFICIARY NAME", "NARRATION",
+#     "Remarks", "DATE"
+# ]
+
+# df_ui = df_ui[DISPLAY_COLUMNS]
+
+# # ---------------------------------------------------
+# # DATA EDITOR
+# # ---------------------------------------------------
+# st.subheader("📂 Pending Approvals")
+
+# with st.form("approval_form"):
+#     edited_df = st.data_editor(
+#         df_ui,
+#         hide_index=True,
+#         use_container_width=True,
+#         disabled=[c for c in df_ui.columns if c not in ["APPROVAL_1", "APPROVAL_2"]],
+#         column_config={
+#             "__index__": None,
+#             "APPROVAL_1": st.column_config.SelectboxColumn(
+#                 "APPROVAL_1", options=["", "ACCEPTED", "REJECTED"]
+#             ),
+#             "APPROVAL_2": st.column_config.SelectboxColumn(
+#                 "APPROVAL_2", options=["", "ACCEPTED", "REJECTED"]
+#             ),
+#         }
+#     )
+
+#     submit = st.form_submit_button("💾 Save Bulk Approval")
+
+# # ---------------------------------------------------
+# # SAVE (INDEX SAFE, NO ROW_ID)
+# # ---------------------------------------------------
+# if submit:
+#     try:
+#         df = st.session_state.df.copy()
+
+#         for _, row in edited_df.iterrows():
+#             idx = int(row["__index__"])
+#             df.loc[idx, "APPROVAL_1"] = row["APPROVAL_1"]
+#             df.loc[idx, "APPROVAL_2"] = row["APPROVAL_2"]
+
+#         df = apply_adjustment_logic(df)
+
+#         st.write(
+#             "Saving adjustments preview:",
+#             df[df["ADJUSTMENT_AMOUNT"] > 0][
+#                 ["STATUS_MATCHED_ESTIMATION", "BASIC_AMOUNT", "ADJUSTMENT_AMOUNT"]
+#             ].head()
+#         )
+
+#         upload_excel_to_github(df)
+#         upload_excel_to_drive(df)
+
+#         st.session_state.df = df
+
+#         st.success("✅ Adjustments correctly saved to GitHub & Drive")
+#         st.rerun()
+
+#     except Exception as e:
+#         st.error(f"❌ Save failed: {e}")
+
+# # ---------------------------------------------------
+# # FOOTER
+# # ---------------------------------------------------
+# st.write("---")
+# st.info("ℹ GitHub and Google Drive are always in sync.")
+
+
 import io
 import json
 import base64
@@ -4085,6 +4328,16 @@ import requests
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
+
+# ===================================================
+# DEBUG CONFIG
+# ===================================================
+DEBUG = True   # 🔁 Set False to disable debug
+
+def debug(msg):
+    if DEBUG:
+        st.toast(msg)
+        st.write(f"🟢 {msg}")
 
 # ---------------------------------------------------
 # PAGE CONFIG
@@ -4097,6 +4350,7 @@ st.set_page_config(
 
 st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management</h1>", unsafe_allow_html=True)
 st.write("---")
+debug("App started")
 
 # ---------------------------------------------------
 # SECRETS
@@ -4108,11 +4362,13 @@ FILE_ID = st.secrets["FILE_ID"]
 SERVICE_ACCOUNT_JSON = st.secrets["SERVICE_ACCOUNT_JSON"]
 
 HEADERS = {"Authorization": f"token {GITHUB_TOKEN}"}
+debug("Secrets loaded")
 
 # ---------------------------------------------------
 # GOOGLE DRIVE
 # ---------------------------------------------------
 def get_drive_service():
+    debug("Creating Google Drive service")
     creds = Credentials.from_service_account_info(
         json.loads(SERVICE_ACCOUNT_JSON),
         scopes=["https://www.googleapis.com/auth/drive"]
@@ -4120,14 +4376,18 @@ def get_drive_service():
     return build("drive", "v3", credentials=creds)
 
 def download_excel_from_drive():
+    debug("Downloading Excel from Drive")
     service = get_drive_service()
     fh = io.BytesIO()
     request = service.files().get_media(fileId=FILE_ID)
     MediaIoBaseDownload(fh, request).next_chunk()
     fh.seek(0)
-    return pd.read_excel(fh, engine="openpyxl")
+    df = pd.read_excel(fh, engine="openpyxl")
+    debug(f"Drive download complete | Rows: {len(df)}")
+    return df
 
 def upload_excel_to_drive(df):
+    debug("Uploading Excel to Drive")
     service = get_drive_service()
     out = io.BytesIO()
     df.to_excel(out, index=False, engine="openpyxl")
@@ -4138,11 +4398,13 @@ def upload_excel_to_drive(df):
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     service.files().update(fileId=FILE_ID, media_body=media).execute()
+    debug("Drive upload successful")
 
 # ---------------------------------------------------
 # GITHUB
 # ---------------------------------------------------
 def upload_excel_to_github(df):
+    debug("Uploading Excel to GitHub")
     out = io.BytesIO()
     df.to_excel(out, index=False, engine="openpyxl")
     out.seek(0)
@@ -4153,18 +4415,29 @@ def upload_excel_to_github(df):
     sha = requests.get(url, headers=HEADERS).json()["sha"]
 
     payload = {
-        "message": "Updated approvals & adjustment via Streamlit",
+        "message": "Updated approvals & adjustments via Streamlit",
         "content": content_b64,
         "sha": sha
     }
 
     r = requests.put(url, headers=HEADERS, json=payload)
     r.raise_for_status()
+    debug("GitHub upload successful")
 
 # ---------------------------------------------------
-# ADJUSTMENT LOGIC (SINGLE SOURCE OF TRUTH)
+# CLEAN UI-ONLY COLUMNS BEFORE SAVE
+# ---------------------------------------------------
+def clean_before_save(df):
+    df = df.copy()
+    if "__index__" in df.columns:
+        df.drop(columns=["__index__"], inplace=True)
+    return df
+
+# ---------------------------------------------------
+# ADJUSTMENT LOGIC
 # ---------------------------------------------------
 def apply_adjustment_logic(df):
+    debug("Applying adjustment logic")
     df = df.copy()
 
     df["BASIC_AMOUNT"] = (
@@ -4180,52 +4453,43 @@ def apply_adjustment_logic(df):
         df.get("ADJUSTMENT_AMOUNT", 0), errors="coerce"
     ).fillna(0)
 
-    status_1 = (
-        df.get("STATUS_MATCHED_ESTIMATION", "")
-        .astype(str)
-        .str.upper()
-        .str.replace(r"\s+", " ", regex=True)
-        .str.strip()
-    )
-
-    status_2 = (
-        df.get("STATUS", "")
-        .astype(str)
-        .str.upper()
-        .str.replace(r"\s+", " ", regex=True)
-        .str.strip()
-    )
+    status_1 = df.get("STATUS_MATCHED_ESTIMATION", "").astype(str).str.upper()
+    status_2 = df.get("STATUS", "").astype(str).str.upper()
 
     mask = (
-        (
-            status_1.str.contains("NOT MATCH", na=False)
-            | status_2.str.contains("NOT MATCH", na=False)
-        )
+        (status_1.str.contains("NOT MATCH", na=False) |
+         status_2.str.contains("NOT MATCH", na=False))
         & (df["BASIC_AMOUNT"] > 0)
     )
 
     df.loc[mask, "ADJUSTMENT_AMOUNT"] = df.loc[mask, "BASIC_AMOUNT"]
 
+    debug(f"Adjustment applied | Max: {df['ADJUSTMENT_AMOUNT'].max()}")
     return df
 
 # ---------------------------------------------------
-# INITIAL LOAD (RUNS ONCE)
+# INITIAL LOAD
 # ---------------------------------------------------
 if "df" not in st.session_state:
+    debug("Initial load started")
     with st.spinner("🔄 Loading Excel from Drive..."):
         df = download_excel_from_drive()
         df = apply_adjustment_logic(df)
 
-        upload_excel_to_github(df)
-        upload_excel_to_drive(df)
+        df_to_save = clean_before_save(df)
+        upload_excel_to_github(df_to_save)
+        upload_excel_to_drive(df_to_save)
 
         st.session_state.df = df
+        debug("Initial dataframe stored in session_state")
 
 df = st.session_state.df.copy()
 
 # ---------------------------------------------------
 # FILTER UI (VISUAL ONLY)
 # ---------------------------------------------------
+debug("Applying UI filter")
+
 df_ui = df[
     ~(
         (df["APPROVAL_1"].astype(str).str.upper() == "REJECTED") &
@@ -4233,8 +4497,8 @@ df_ui = df[
     )
 ].copy()
 
-# 🔑 PRESERVE ORIGINAL INDEX (NO ROW_ID)
 df_ui["__index__"] = df_ui.index
+debug(f"Rows visible in UI: {len(df_ui)}")
 
 # ---------------------------------------------------
 # DISPLAY COLUMNS
@@ -4258,7 +4522,7 @@ df_ui = df_ui[DISPLAY_COLUMNS]
 # ---------------------------------------------------
 # DATA EDITOR
 # ---------------------------------------------------
-st.subheader("📂 Pending Approvals")
+debug("Rendering data editor")
 
 with st.form("approval_form"):
     edited_df = st.data_editor(
@@ -4280,32 +4544,33 @@ with st.form("approval_form"):
     submit = st.form_submit_button("💾 Save Bulk Approval")
 
 # ---------------------------------------------------
-# SAVE (INDEX SAFE, NO ROW_ID)
+# SAVE
 # ---------------------------------------------------
 if submit:
+    debug("Save button clicked")
     try:
         df = st.session_state.df.copy()
+        debug("Mapping approvals back to original dataframe")
 
         for _, row in edited_df.iterrows():
             idx = int(row["__index__"])
             df.loc[idx, "APPROVAL_1"] = row["APPROVAL_1"]
             df.loc[idx, "APPROVAL_2"] = row["APPROVAL_2"]
 
+        debug("Approval mapping completed")
+
         df = apply_adjustment_logic(df)
 
-        st.write(
-            "Saving adjustments preview:",
-            df[df["ADJUSTMENT_AMOUNT"] > 0][
-                ["STATUS_MATCHED_ESTIMATION", "BASIC_AMOUNT", "ADJUSTMENT_AMOUNT"]
-            ].head()
-        )
+        df_to_save = clean_before_save(df)
+        debug("UI-only columns removed before Excel write")
 
-        upload_excel_to_github(df)
-        upload_excel_to_drive(df)
+        upload_excel_to_github(df_to_save)
+        upload_excel_to_drive(df_to_save)
 
         st.session_state.df = df
+        debug("Session state updated")
 
-        st.success("✅ Adjustments correctly saved to GitHub & Drive")
+        st.success("✅ Adjustments saved correctly")
         st.rerun()
 
     except Exception as e:
@@ -4316,4 +4581,5 @@ if submit:
 # ---------------------------------------------------
 st.write("---")
 st.info("ℹ GitHub and Google Drive are always in sync.")
+debug("App execution completed")
 
