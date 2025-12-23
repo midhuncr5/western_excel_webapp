@@ -2611,7 +2611,6 @@
 
 # st.info("⚠️ GitHub is the working copy. Google Drive is auto-synced after save.")
 
-
 import io
 import json
 import base64
@@ -2643,11 +2642,12 @@ st.write("---")
 # ---------------------------------------------------
 if "df" not in st.session_state:
     st.session_state.df = None
+
 if "edited_df" not in st.session_state:
     st.session_state.edited_df = None
 
 # ---------------------------------------------------
-# LOAD SECRETS (USING YOUR NAMES)
+# LOAD SECRETS (USING YOUR EXACT NAMES)
 # ---------------------------------------------------
 required_secrets = [
     "GITHUB_TOKEN",
@@ -2657,24 +2657,25 @@ required_secrets = [
     "SERVICE_ACCOUNT_JSON"
 ]
 
-for s in required_secrets:
-    if s not in st.secrets:
-        st.error(f"Missing secret: {s}")
+for key in required_secrets:
+    if key not in st.secrets:
+        st.error(f"Missing secret: {key}")
         st.stop()
 
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 GITHUB_REPO = st.secrets["GITHUB_REPO"]
 GITHUB_FILE_PATH = st.secrets["GITHUB_FILE_PATH"]
-FILE_ID = st.secrets["FILE_ID"]  # ✅ DRIVE EXCEL FILE
+FILE_ID = st.secrets["FILE_ID"]  # 🔥 Google Drive Excel
+SERVICE_ACCOUNT_JSON = st.secrets["SERVICE_ACCOUNT_JSON"]
 
 HEADERS = {"Authorization": f"token {GITHUB_TOKEN}"}
 
 # ---------------------------------------------------
-# GOOGLE DRIVE FUNCTIONS (EXCEL ONLY)
+# GOOGLE DRIVE FUNCTIONS (EXCEL FILE)
 # ---------------------------------------------------
 def get_drive_service():
     creds = Credentials.from_service_account_info(
-        st.secrets["GDRIVE_SERVICE_ACCOUNT"],
+        json.loads(SERVICE_ACCOUNT_JSON),
         scopes=["https://www.googleapis.com/auth/drive"]
     )
     return build("drive", "v3", credentials=creds)
@@ -2683,6 +2684,7 @@ def get_drive_service():
 def download_excel_from_drive():
     service = get_drive_service()
     request = service.files().get_media(fileId=FILE_ID)
+
     fh = io.BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
 
@@ -2720,11 +2722,11 @@ def download_excel_from_github():
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
     r = requests.get(url, headers=HEADERS)
     r.raise_for_status()
+
     content = r.json()["content"]
-    return pd.read_excel(
-        io.BytesIO(base64.b64decode(content)),
-        engine="openpyxl"
-    )
+    file_bytes = base64.b64decode(content)
+
+    return pd.read_excel(io.BytesIO(file_bytes), engine="openpyxl")
 
 
 def upload_excel_to_github(df):
@@ -2738,7 +2740,7 @@ def upload_excel_to_github(df):
     sha = requests.get(url, headers=HEADERS).json()["sha"]
 
     payload = {
-        "message": "Updated via Streamlit approval system",
+        "message": "Updated via Streamlit Approval System",
         "content": content_b64,
         "sha": sha
     }
@@ -2755,9 +2757,9 @@ if st.session_state.df is None:
         upload_excel_to_github(drive_df)
         df = download_excel_from_github()
 
-        for c in ["APPROVAL_1", "APPROVAL_2"]:
-            if c not in df.columns:
-                df[c] = ""
+        for col in ["APPROVAL_1", "APPROVAL_2"]:
+            if col not in df.columns:
+                df[col] = ""
 
         st.session_state.df = df.reset_index(drop=True)
 
@@ -2792,16 +2794,17 @@ DISPLAY_COLUMNS = [
 df_ui = df_ui[DISPLAY_COLUMNS]
 
 # ---------------------------------------------------
-# AUTO ADJUSTMENT
+# AUTO ADJUSTMENT LOGIC
 # ---------------------------------------------------
 df_ui["BASIC_AMOUNT"] = pd.to_numeric(df_ui["BASIC_AMOUNT"], errors="coerce").fillna(0)
 df_ui["ADJUSTMENT_AMOUNT"] = pd.to_numeric(df_ui["ADJUSTMENT_AMOUNT"], errors="coerce").fillna(0)
 
 mask = (
-    (df_ui["STATUS_MATCHED_ESTIMATION"].str.upper() == "ESTIMATION NOT MATCHED") &
+    (df_ui["STATUS_MATCHED_ESTIMATION"].fillna("").str.upper() == "ESTIMATION NOT MATCHED") &
     (df_ui["BASIC_AMOUNT"] != 0) &
     (df_ui["ADJUSTMENT_AMOUNT"] == 0)
 )
+
 df_ui.loc[mask, "ADJUSTMENT_AMOUNT"] = df_ui.loc[mask, "BASIC_AMOUNT"]
 
 if st.session_state.edited_df is None:
@@ -2810,6 +2813,8 @@ if st.session_state.edited_df is None:
 # ---------------------------------------------------
 # EDITOR
 # ---------------------------------------------------
+st.subheader("📂 Pending Approvals")
+
 with st.form("approval_form"):
     edited_df = st.data_editor(
         st.session_state.edited_df,
@@ -2828,14 +2833,44 @@ with st.form("approval_form"):
 # SAVE (GITHUB → 5s → DRIVE)
 # ---------------------------------------------------
 if submit:
-    df.loc[df_ui.index, ["APPROVAL_1", "APPROVAL_2"]] = \
-        edited_df[["APPROVAL_1", "APPROVAL_2"]].values
+    try:
+        df.loc[df_ui.index, ["APPROVAL_1", "APPROVAL_2"]] = \
+            edited_df[["APPROVAL_1", "APPROVAL_2"]].values
 
-    upload_excel_to_github(df)
-    time.sleep(5)
-    upload_excel_to_drive(df)
+        upload_excel_to_github(df)
+        time.sleep(5)
+        upload_excel_to_drive(df)
 
-    st.cache_data.clear()
-    st.success("✅ GitHub updated and Drive synced successfully")
+        st.cache_data.clear()
+        st.success("✅ Saved to GitHub and synced back to Google Drive")
+
+    except Exception as e:
+        st.error(f"❌ Save failed: {e}")
+
+# ---------------------------------------------------
+# PROJECT SUMMARY
+# ---------------------------------------------------
+st.write("---")
+st.subheader("💼 Project-wise Highest Expense")
+
+expense_df = df.copy()
+expense_df["FINAL AMOUNT"] = pd.to_numeric(expense_df["FINAL AMOUNT"], errors="coerce").fillna(0)
+expense_df["PROJECT_NAME"] = expense_df["PROJECT_NAME"].astype(str).str.upper().str.strip()
+
+grp = expense_df.groupby(["PROJECT_NAME", "CATEGORY"])["FINAL AMOUNT"].sum().reset_index()
+top_expenses = grp.sort_values("FINAL AMOUNT", ascending=False).groupby("PROJECT_NAME").head(1)
+
+st.dataframe(top_expenses, use_container_width=True)
+
+chart = alt.Chart(top_expenses).mark_bar().encode(
+    x="PROJECT_NAME:N",
+    y="FINAL AMOUNT:Q",
+    color="CATEGORY:N",
+    tooltip=["PROJECT_NAME", "CATEGORY", "FINAL AMOUNT"]
+).properties(height=400)
+
+st.altair_chart(chart, use_container_width=True)
+
+st.info("ℹ GitHub is the working copy. Google Drive is the final synced file.")
 
 
