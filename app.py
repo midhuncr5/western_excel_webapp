@@ -3095,36 +3095,71 @@ with st.form("approval_form"):
 # ---------------------------------------------------
 # SAVE (RECALCULATE → GITHUB → DRIVE)
 # ---------------------------------------------------
+# if submit:
+#     try:
+#         # Save approvals
+#         df.loc[df_ui.index, ["APPROVAL_1", "APPROVAL_2"]] = \
+#             edited_df[["APPROVAL_1", "APPROVAL_2"]].values
+
+#         # 🔥 FORCE adjustment calculation on MAIN DF
+#         df["BASIC_AMOUNT"] = pd.to_numeric(df["BASIC_AMOUNT"], errors="coerce").fillna(0)
+#         df["ADJUSTMENT_AMOUNT"] = pd.to_numeric(df["ADJUSTMENT_AMOUNT"], errors="coerce").fillna(0)
+
+#         mask = (
+#             (df["STATUS_MATCHED_ESTIMATION"].fillna("").str.upper() == "ESTIMATION NOT MATCHED") &
+#             (df["BASIC_AMOUNT"] != 0)
+#         )
+
+#         df.loc[mask, "ADJUSTMENT_AMOUNT"] = df.loc[mask, "BASIC_AMOUNT"]
+
+#         upload_excel_to_github(df)
+#         time.sleep(5)
+#         upload_excel_to_drive(df)
+
+#         st.session_state.df = df.copy()
+#         st.session_state.edited_df = None
+#         st.cache_data.clear()
+
+#         st.success("✅ Saved successfully. Adjustment Amount preserved.")
+#         st.rerun()
+
+#     except Exception as e:
+#         st.error(f"❌ Save failed: {e}")
+
 if submit:
     try:
-        # Save approvals
+        # ✅ Update approvals
         df.loc[df_ui.index, ["APPROVAL_1", "APPROVAL_2"]] = \
             edited_df[["APPROVAL_1", "APPROVAL_2"]].values
 
-        # 🔥 FORCE adjustment calculation on MAIN DF
+        # ✅ Ensure numeric
         df["BASIC_AMOUNT"] = pd.to_numeric(df["BASIC_AMOUNT"], errors="coerce").fillna(0)
         df["ADJUSTMENT_AMOUNT"] = pd.to_numeric(df["ADJUSTMENT_AMOUNT"], errors="coerce").fillna(0)
 
-        mask = (
+        # ✅ Apply adjustment ONLY on edited rows
+        adj_mask = (
+            df.index.isin(df_ui.index) &
             (df["STATUS_MATCHED_ESTIMATION"].fillna("").str.upper() == "ESTIMATION NOT MATCHED") &
             (df["BASIC_AMOUNT"] != 0)
         )
 
-        df.loc[mask, "ADJUSTMENT_AMOUNT"] = df.loc[mask, "BASIC_AMOUNT"]
+        df.loc[adj_mask, "ADJUSTMENT_AMOUNT"] = df.loc[adj_mask, "BASIC_AMOUNT"]
 
+        # ✅ Upload sequence
         upload_excel_to_github(df)
         time.sleep(5)
         upload_excel_to_drive(df)
 
+        # ✅ Reset state
         st.session_state.df = df.copy()
-        st.session_state.edited_df = None
         st.cache_data.clear()
 
-        st.success("✅ Saved successfully. Adjustment Amount preserved.")
+        st.success("✅ Saved successfully. Adjustment Amount updated correctly.")
         st.rerun()
 
     except Exception as e:
         st.error(f"❌ Save failed: {e}")
+
 
 # ---------------------------------------------------
 # PROJECT SUMMARY
