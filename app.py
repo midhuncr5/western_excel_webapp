@@ -3836,14 +3836,251 @@
 
 # st.info("ℹ GitHub is the working copy. Google Drive is the final synced file.")
 
+# import io
+# import json
+# import base64
+# import time
+# import pandas as pd
+# import streamlit as st
+# import requests
+# import altair as alt
+
+# from google.oauth2.service_account import Credentials
+# from googleapiclient.discovery import build
+# from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
+
+# # ---------------------------------------------------
+# # PAGE CONFIG
+# # ---------------------------------------------------
+# st.set_page_config(
+#     page_title="GitHub Excel Approval System",
+#     page_icon="📝",
+#     layout="wide"
+# )
+
+# st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management</h1>", unsafe_allow_html=True)
+# st.write("---")
+
+# # ---------------------------------------------------
+# # SECRETS
+# # ---------------------------------------------------
+# GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
+# GITHUB_REPO = st.secrets["GITHUB_REPO"]
+# GITHUB_FILE_PATH = st.secrets["GITHUB_FILE_PATH"]
+# FILE_ID = st.secrets["FILE_ID"]
+# SERVICE_ACCOUNT_JSON = st.secrets["SERVICE_ACCOUNT_JSON"]
+
+# HEADERS = {"Authorization": f"token {GITHUB_TOKEN}"}
+
+# # ---------------------------------------------------
+# # GOOGLE DRIVE
+# # ---------------------------------------------------
+# def get_drive_service():
+#     creds = Credentials.from_service_account_info(
+#         json.loads(SERVICE_ACCOUNT_JSON),
+#         scopes=["https://www.googleapis.com/auth/drive"]
+#     )
+#     return build("drive", "v3", credentials=creds)
+
+# def download_excel_from_drive():
+#     service = get_drive_service()
+#     fh = io.BytesIO()
+#     request = service.files().get_media(fileId=FILE_ID)
+#     MediaIoBaseDownload(fh, request).next_chunk()
+#     fh.seek(0)
+#     return pd.read_excel(fh, engine="openpyxl")
+
+# def upload_excel_to_drive(df):
+#     service = get_drive_service()
+#     out = io.BytesIO()
+#     df.to_excel(out, index=False, engine="openpyxl")
+#     out.seek(0)
+
+#     media = MediaIoBaseUpload(
+#         out,
+#         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+#     )
+#     service.files().update(fileId=FILE_ID, media_body=media).execute()
+
+# # ---------------------------------------------------
+# # GITHUB
+# # ---------------------------------------------------
+# def upload_excel_to_github(df):
+#     out = io.BytesIO()
+#     df.to_excel(out, index=False, engine="openpyxl")
+#     out.seek(0)
+
+#     content_b64 = base64.b64encode(out.read()).decode()
+
+#     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
+#     sha = requests.get(url, headers=HEADERS).json()["sha"]
+
+#     payload = {
+#         "message": "Updated adjustment amount via Streamlit",
+#         "content": content_b64,
+#         "sha": sha
+#     }
+
+#     r = requests.put(url, headers=HEADERS, json=payload)
+#     r.raise_for_status()
+
+# # ---------------------------------------------------
+# # ✅ ADJUSTMENT LOGIC (SINGLE SOURCE OF TRUTH)
+# # ---------------------------------------------------
+# def apply_adjustment_logic(df):
+#     df = df.copy()
+
+#     # Clean amounts
+#     df["BASIC_AMOUNT"] = (
+#         df["BASIC_AMOUNT"]
+#         .astype(str)
+#         .str.replace(",", "", regex=False)
+#         .str.replace("₹", "", regex=False)
+#         .str.strip()
+#     )
+#     df["BASIC_AMOUNT"] = pd.to_numeric(df["BASIC_AMOUNT"], errors="coerce").fillna(0)
+
+#     df["ADJUSTMENT_AMOUNT"] = pd.to_numeric(
+#         df.get("ADJUSTMENT_AMOUNT", 0), errors="coerce"
+#     ).fillna(0)
+
+#     # Normalize status columns
+#     status_1 = (
+#         df.get("STATUS_MATCHED_ESTIMATION", "")
+#         .astype(str)
+#         .str.upper()
+#         .str.replace(r"\s+", " ", regex=True)
+#         .str.strip()
+#     )
+
+#     status_2 = (
+#         df.get("STATUS", "")
+#         .astype(str)
+#         .str.upper()
+#         .str.replace(r"\s+", " ", regex=True)
+#         .str.strip()
+#     )
+
+#     # FINAL SAFE MASK
+#     mask = (
+#         (
+#             status_1.str.contains("NOT MATCH", na=False)
+#             | status_2.str.contains("NOT MATCH", na=False)
+#         )
+#         & (df["BASIC_AMOUNT"] > 0)
+#     )
+
+#     df.loc[mask, "ADJUSTMENT_AMOUNT"] = df.loc[mask, "BASIC_AMOUNT"]
+
+#     return df
+
+
+# # ---------------------------------------------------
+# # INITIAL LOAD (RUNS ONCE)
+# # ---------------------------------------------------
+# if "df" not in st.session_state:
+#     with st.spinner("🔄 Loading Excel from Drive..."):
+#         df = download_excel_from_drive()
+#         df = apply_adjustment_logic(df)
+
+#         # SAVE EXACT SAME DF
+#         upload_excel_to_github(df)
+#         upload_excel_to_drive(df)
+
+#         st.session_state.df = df
+
+# df = st.session_state.df
+
+# # ---------------------------------------------------
+# # FILTER UI (ONLY VISUAL)
+# # ---------------------------------------------------
+# df_ui = df[
+#     ~(
+#         (df["APPROVAL_1"].astype(str).str.upper() == "REJECTED") &
+#         (df["APPROVAL_2"].astype(str).str.upper() == "REJECTED")
+#     )
+# ].copy()
+
+# # ---------------------------------------------------
+# # DISPLAY COLUMNS
+# # ---------------------------------------------------
+# DISPLAY_COLUMNS = [
+#     "STATUS_MATCHED_ESTIMATION", "GST %", "TDS %",
+#     "GST (Yes/No)", "TDS (Yes/No)",
+#     "BENEFICIARY PAN", "BENEFICIARY GSTIN",
+#     "BENEFICIARY ACCOUNT NO", "FINAL AMOUNT",
+#     "PROJECT_NAME", "CATEGORY",
+#     "FIXED_AMOUNT", "BALANCE_AMOUNT",
+#     "ADJUSTMENT_AMOUNT", "BASIC_AMOUNT",
+#     "APPROVAL_1", "APPROVAL_2",
+#     "BENEFICIARY NAME", "NARRATION",
+#     "Remarks", "DATE"
+# ]
+
+# df_ui = df_ui[DISPLAY_COLUMNS]
+
+# # ---------------------------------------------------
+# # DATA EDITOR
+# # ---------------------------------------------------
+# st.subheader("📂 Pending Approvals")
+
+# with st.form("approval_form"):
+#     edited_df = st.data_editor(
+#         df_ui,
+#         hide_index=True,
+#         use_container_width=True,
+#         disabled=[c for c in df_ui.columns if c not in ["APPROVAL_1", "APPROVAL_2"]],
+#         column_config={
+#             "APPROVAL_1": st.column_config.SelectboxColumn(
+#                 "APPROVAL_1", options=["", "ACCEPTED", "REJECTED"]
+#             ),
+#             "APPROVAL_2": st.column_config.SelectboxColumn(
+#                 "APPROVAL_2", options=["", "ACCEPTED", "REJECTED"]
+#             ),
+#         }
+#     )
+
+#     submit = st.form_submit_button("💾 Save Bulk Approval")
+
+# # ---------------------------------------------------
+# # SAVE (SAME DF → ADJUST → SAVE)
+# # ---------------------------------------------------
+# if submit:
+#     try:
+#         df = st.session_state.df
+
+#         df.loc[df_ui.index, ["APPROVAL_1", "APPROVAL_2"]] = \
+#             edited_df[["APPROVAL_1", "APPROVAL_2"]].values
+
+#         df = apply_adjustment_logic(df)
+
+#         # 🔍 Verification
+#         st.write("Saving max adjustment:", df["ADJUSTMENT_AMOUNT"].max())
+
+#         upload_excel_to_github(df)
+#         upload_excel_to_drive(df)
+
+#         st.session_state.df = df
+
+#         st.success("✅ Adjustment saved correctly to GitHub & Drive")
+#         st.rerun()
+
+#     except Exception as e:
+#         st.error(f"❌ Save failed: {e}")
+
+# # ---------------------------------------------------
+# # SUMMARY
+# # ---------------------------------------------------
+# st.write("---")
+# st.info("ℹ GitHub and Google Drive are now always in sync.")
+
+
 import io
 import json
 import base64
-import time
 import pandas as pd
 import streamlit as st
 import requests
-import altair as alt
 
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
@@ -3916,7 +4153,7 @@ def upload_excel_to_github(df):
     sha = requests.get(url, headers=HEADERS).json()["sha"]
 
     payload = {
-        "message": "Updated adjustment amount via Streamlit",
+        "message": "Updated approvals & adjustment via Streamlit",
         "content": content_b64,
         "sha": sha
     }
@@ -3925,12 +4162,11 @@ def upload_excel_to_github(df):
     r.raise_for_status()
 
 # ---------------------------------------------------
-# ✅ ADJUSTMENT LOGIC (SINGLE SOURCE OF TRUTH)
+# ADJUSTMENT LOGIC (SINGLE SOURCE OF TRUTH)
 # ---------------------------------------------------
 def apply_adjustment_logic(df):
     df = df.copy()
 
-    # Clean amounts
     df["BASIC_AMOUNT"] = (
         df["BASIC_AMOUNT"]
         .astype(str)
@@ -3944,7 +4180,6 @@ def apply_adjustment_logic(df):
         df.get("ADJUSTMENT_AMOUNT", 0), errors="coerce"
     ).fillna(0)
 
-    # Normalize status columns
     status_1 = (
         df.get("STATUS_MATCHED_ESTIMATION", "")
         .astype(str)
@@ -3961,7 +4196,6 @@ def apply_adjustment_logic(df):
         .str.strip()
     )
 
-    # FINAL SAFE MASK
     mask = (
         (
             status_1.str.contains("NOT MATCH", na=False)
@@ -3974,7 +4208,6 @@ def apply_adjustment_logic(df):
 
     return df
 
-
 # ---------------------------------------------------
 # INITIAL LOAD (RUNS ONCE)
 # ---------------------------------------------------
@@ -3983,16 +4216,15 @@ if "df" not in st.session_state:
         df = download_excel_from_drive()
         df = apply_adjustment_logic(df)
 
-        # SAVE EXACT SAME DF
         upload_excel_to_github(df)
         upload_excel_to_drive(df)
 
         st.session_state.df = df
 
-df = st.session_state.df
+df = st.session_state.df.copy()
 
 # ---------------------------------------------------
-# FILTER UI (ONLY VISUAL)
+# FILTER UI (VISUAL ONLY)
 # ---------------------------------------------------
 df_ui = df[
     ~(
@@ -4001,10 +4233,14 @@ df_ui = df[
     )
 ].copy()
 
+# 🔑 PRESERVE ORIGINAL INDEX (NO ROW_ID)
+df_ui["__index__"] = df_ui.index
+
 # ---------------------------------------------------
 # DISPLAY COLUMNS
 # ---------------------------------------------------
 DISPLAY_COLUMNS = [
+    "__index__",
     "STATUS_MATCHED_ESTIMATION", "GST %", "TDS %",
     "GST (Yes/No)", "TDS (Yes/No)",
     "BENEFICIARY PAN", "BENEFICIARY GSTIN",
@@ -4031,6 +4267,7 @@ with st.form("approval_form"):
         use_container_width=True,
         disabled=[c for c in df_ui.columns if c not in ["APPROVAL_1", "APPROVAL_2"]],
         column_config={
+            "__index__": None,
             "APPROVAL_1": st.column_config.SelectboxColumn(
                 "APPROVAL_1", options=["", "ACCEPTED", "REJECTED"]
             ),
@@ -4043,34 +4280,40 @@ with st.form("approval_form"):
     submit = st.form_submit_button("💾 Save Bulk Approval")
 
 # ---------------------------------------------------
-# SAVE (SAME DF → ADJUST → SAVE)
+# SAVE (INDEX SAFE, NO ROW_ID)
 # ---------------------------------------------------
 if submit:
     try:
-        df = st.session_state.df
+        df = st.session_state.df.copy()
 
-        df.loc[df_ui.index, ["APPROVAL_1", "APPROVAL_2"]] = \
-            edited_df[["APPROVAL_1", "APPROVAL_2"]].values
+        for _, row in edited_df.iterrows():
+            idx = int(row["__index__"])
+            df.loc[idx, "APPROVAL_1"] = row["APPROVAL_1"]
+            df.loc[idx, "APPROVAL_2"] = row["APPROVAL_2"]
 
         df = apply_adjustment_logic(df)
 
-        # 🔍 Verification
-        st.write("Saving max adjustment:", df["ADJUSTMENT_AMOUNT"].max())
+        st.write(
+            "Saving adjustments preview:",
+            df[df["ADJUSTMENT_AMOUNT"] > 0][
+                ["STATUS_MATCHED_ESTIMATION", "BASIC_AMOUNT", "ADJUSTMENT_AMOUNT"]
+            ].head()
+        )
 
         upload_excel_to_github(df)
         upload_excel_to_drive(df)
 
         st.session_state.df = df
 
-        st.success("✅ Adjustment saved correctly to GitHub & Drive")
+        st.success("✅ Adjustments correctly saved to GitHub & Drive")
         st.rerun()
 
     except Exception as e:
         st.error(f"❌ Save failed: {e}")
 
 # ---------------------------------------------------
-# SUMMARY
+# FOOTER
 # ---------------------------------------------------
 st.write("---")
-st.info("ℹ GitHub and Google Drive are now always in sync.")
+st.info("ℹ GitHub and Google Drive are always in sync.")
 
