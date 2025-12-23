@@ -2813,6 +2813,22 @@ if st.session_state.edited_df is None:
 # ---------------------------------------------------
 # EDITOR
 # ---------------------------------------------------
+# st.subheader("📂 Pending Approvals")
+
+# with st.form("approval_form"):
+#     edited_df = st.data_editor(
+#         st.session_state.edited_df,
+#         hide_index=True,
+#         use_container_width=True,
+#         disabled=[c for c in df_ui.columns if c not in ["APPROVAL_1", "APPROVAL_2"]],
+#         column_config={
+#             "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", ["", "ACCEPTED", "REJECTED"]),
+#             "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", ["", "ACCEPTED", "REJECTED"])
+#         }
+#     )
+
+#     submit = st.form_submit_button("💾 Save Bulk Approval")
+
 st.subheader("📂 Pending Approvals")
 
 with st.form("approval_form"):
@@ -2822,12 +2838,19 @@ with st.form("approval_form"):
         use_container_width=True,
         disabled=[c for c in df_ui.columns if c not in ["APPROVAL_1", "APPROVAL_2"]],
         column_config={
-            "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", ["", "ACCEPTED", "REJECTED"]),
-            "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", ["", "ACCEPTED", "REJECTED"])
+            "APPROVAL_1": st.column_config.SelectboxColumn(
+                "APPROVAL_1",
+                options=["", "ACCEPTED", "REJECTED"]
+            ),
+            "APPROVAL_2": st.column_config.SelectboxColumn(
+                "APPROVAL_2",
+                options=["", "ACCEPTED", "REJECTED"]
+            )
         }
     )
 
     submit = st.form_submit_button("💾 Save Bulk Approval")
+
 
 # ---------------------------------------------------
 # SAVE (GITHUB → 5s → DRIVE)
