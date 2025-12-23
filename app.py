@@ -3266,8 +3266,27 @@ def download_excel_from_drive():
     fh.seek(0)
     return pd.read_excel(fh, engine="openpyxl")
 
+# def upload_excel_to_drive(df):
+#     service = get_drive_service()
+#     out = io.BytesIO()
+#     df.to_excel(out, index=False, engine="openpyxl")
+#     out.seek(0)
+
+#     media = MediaIoBaseUpload(
+#         out,
+#         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+#         resumable=True
+#     )
+
+#     service.files().update(fileId=FILE_ID, media_body=media).execute()
+
 def upload_excel_to_drive(df):
     service = get_drive_service()
+
+    # Ensure numeric columns are numeric
+    df["BASIC_AMOUNT"] = pd.to_numeric(df["BASIC_AMOUNT"], errors="coerce").fillna(0)
+    df["ADJUSTMENT_AMOUNT"] = pd.to_numeric(df["ADJUSTMENT_AMOUNT"], errors="coerce").fillna(0)
+
     out = io.BytesIO()
     df.to_excel(out, index=False, engine="openpyxl")
     out.seek(0)
@@ -3279,6 +3298,7 @@ def upload_excel_to_drive(df):
     )
 
     service.files().update(fileId=FILE_ID, media_body=media).execute()
+
 
 # ---------------------------------------------------
 # GITHUB FUNCTIONS
