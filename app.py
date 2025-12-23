@@ -1320,12 +1320,33 @@ df_ui = df_ui[DISPLAY_COLUMNS]
 df_ui["BASIC_AMOUNT"] = pd.to_numeric(df_ui["BASIC_AMOUNT"], errors="coerce").fillna(0)
 df_ui["ADJUSTMENT_AMOUNT"] = pd.to_numeric(df_ui["ADJUSTMENT_AMOUNT"], errors="coerce").fillna(0)
 
+# mask = (
+#     (df_ui.get("STATUS_MATCHED_ESTIMATION", "").astype(str).str.upper() == "ESTIMATION NOT MATCHED") &
+#     (df_ui["BASIC_AMOUNT"] != 0) &
+#     (df_ui["ADJUSTMENT_AMOUNT"] == 0)
+# )
+# df_ui.loc[mask, "ADJUSTMENT_AMOUNT"] = df_ui.loc[mask, "BASIC_AMOUNT"]
+
+# Ensure the column exists
+if "STATUS_MATCHED_ESTIMATION" not in df_ui.columns:
+    df_ui["STATUS_MATCHED_ESTIMATION"] = ""
+
+# Create mask safely
 mask = (
-    (df_ui.get("STATUS_MATCHED_ESTIMATION", "").astype(str).str.upper() == "ESTIMATION NOT MATCHED") &
-    (df_ui["BASIC_AMOUNT"] != 0) &
-    (df_ui["ADJUSTMENT_AMOUNT"] == 0)
+    df_ui["STATUS_MATCHED_ESTIMATION"]
+        .fillna("")
+        .astype(str)
+        .str.upper()
+        == "ESTIMATION NOT MATCHED"
+) & (
+    df_ui["BASIC_AMOUNT"] != 0
+) & (
+    df_ui["ADJUSTMENT_AMOUNT"] == 0
 )
+
+# Update ADJUSTMENT_AMOUNT
 df_ui.loc[mask, "ADJUSTMENT_AMOUNT"] = df_ui.loc[mask, "BASIC_AMOUNT"]
+
 
 # ---------------------------------------------------
 # EDIT FORM (NO RERUN BUG)
