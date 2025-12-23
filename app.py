@@ -2860,6 +2860,8 @@ if submit:
         df.loc[df_ui.index, ["APPROVAL_1", "APPROVAL_2"]] = \
             edited_df[["APPROVAL_1", "APPROVAL_2"]].values
 
+         df.loc[df_ui.index, "ADJUSTMENT_AMOUNT"] = df_ui["ADJUSTMENT_AMOUNT"].values
+
         upload_excel_to_github(df)
         time.sleep(5)
         upload_excel_to_drive(df)
