@@ -1865,13 +1865,482 @@
 
 # st.info("⚠️ This app overwrites the Excel file. Enable backups if multiple users edit simultaneously.")
 
+# import io
+# import json
+# import base64
+# import pandas as pd
+# import streamlit as st
+# import requests
+# import altair as alt
+
+# # ---------------------------------------------------
+# # PAGE CONFIG
+# # ---------------------------------------------------
+# st.set_page_config(
+#     page_title="GitHub Excel Approval System",
+#     page_icon="📝",
+#     layout="wide",
+#     initial_sidebar_state="expanded"
+# )
+
+# st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management</h1>", unsafe_allow_html=True)
+# st.write("---")
+
+# # ---------------------------------------------------
+# # SESSION FLAGS
+# # ---------------------------------------------------
+# if "df" not in st.session_state:
+#     st.session_state.df = None
+
+# if "edited_df" not in st.session_state:
+#     st.session_state.edited_df = None
+
+# if "save_in_progress" not in st.session_state:
+#     st.session_state.save_in_progress = False
+
+# # ---------------------------------------------------
+# # LOAD SECRETS
+# # ---------------------------------------------------
+# required_secrets = ["GITHUB_TOKEN", "GITHUB_REPO", "GITHUB_FILE_PATH"]
+# for key in required_secrets:
+#     if key not in st.secrets:
+#         st.error(f"{key} missing in Streamlit secrets")
+#         st.stop()
+
+# GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
+# GITHUB_REPO = st.secrets["GITHUB_REPO"]          # e.g., "username/repo"
+# GITHUB_FILE_PATH = st.secrets["GITHUB_FILE_PATH"]  # e.g., "data/approval.xlsx"
+
+# HEADERS = {"Authorization": f"token {GITHUB_TOKEN}"}
+
+# # ---------------------------------------------------
+# # UTIL FUNCTIONS
+# # ---------------------------------------------------
+# @st.cache_data(ttl=300)
+# def download_excel_from_github():
+#     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
+#     r = requests.get(url, headers=HEADERS)
+#     r.raise_for_status()
+#     content = r.json()["content"]
+#     file_bytes = base64.b64decode(content)
+#     return pd.read_excel(io.BytesIO(file_bytes), engine="openpyxl")
+
+# def upload_excel_to_github(df):
+#     # Convert df to Excel bytes
+#     out = io.BytesIO()
+#     df.to_excel(out, index=False, engine="openpyxl")
+#     out.seek(0)
+#     content_b64 = base64.b64encode(out.read()).decode()
+
+#     # Get current file SHA
+#     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
+#     r = requests.get(url, headers=HEADERS)
+#     r.raise_for_status()
+#     sha = r.json()["sha"]
+
+#     # Push update
+#     payload = {
+#         "message": "Update approvals via Streamlit",
+#         "content": content_b64,
+#         "sha": sha
+#     }
+#     r = requests.put(url, headers=HEADERS, data=json.dumps(payload))
+#     r.raise_for_status()
+#     return r.json()
+
+# # ---------------------------------------------------
+# # LOAD DATA
+# # ---------------------------------------------------
+# if st.session_state.df is None:
+#     with st.spinner("📥 Downloading Excel from GitHub..."):
+#         df = download_excel_from_github()
+
+#         for col in ["APPROVAL_1", "APPROVAL_2"]:
+#             if col not in df.columns:
+#                 df[col] = ""
+
+#         st.session_state.df = df.reset_index(drop=True)
+
+# df = st.session_state.df.copy()
+
+# # ---------------------------------------------------
+# # FILTER (UI ONLY)
+# # ---------------------------------------------------
+# df_ui = df[
+#     ~(
+#         (df["APPROVAL_1"].astype(str).str.upper() == "REJECTED") &
+#         (df["APPROVAL_2"].astype(str).str.upper() == "REJECTED")
+#     )
+# ].copy()
+
+# # ---------------------------------------------------
+# # DISPLAY COLUMNS
+# # ---------------------------------------------------
+# DISPLAY_COLUMNS = [
+#     "STATUS_MATCHED_ESTIMATION", "GST %", "TDS %", "GST (Yes/No)",
+#     "TDS (Yes/No)", "BENEFICIARY PAN",
+#     "BENEFICIARY GSTIN", "BENEFICIARY ACCOUNT NO", "FINAL AMOUNT", "PROJECT_NAME",
+#     "CATEGORY", "FIXED_AMOUNT", "BALANCE_AMOUNT", "ADJUSTMENT_AMOUNT", "BASIC_AMOUNT",
+#     "APPROVAL_1", "APPROVAL_2", "BENEFICIARY NAME",
+#     "NARRATION", "Remarks", "DATE"
+# ]
+
+# df_ui = df_ui[DISPLAY_COLUMNS]
+
+# # ---------------------------------------------------
+# # AUTO ADJUSTMENT LOGIC
+# # ---------------------------------------------------
+# df_ui["BASIC_AMOUNT"] = pd.to_numeric(df_ui["BASIC_AMOUNT"], errors="coerce").fillna(0)
+# df_ui["ADJUSTMENT_AMOUNT"] = pd.to_numeric(df_ui["ADJUSTMENT_AMOUNT"], errors="coerce").fillna(0)
+
+# mask = (
+#     df_ui["STATUS_MATCHED_ESTIMATION"].fillna("").str.upper() == "ESTIMATION NOT MATCHED"
+# ) & (
+#     df_ui["BASIC_AMOUNT"] != 0
+# ) & (
+#     df_ui["ADJUSTMENT_AMOUNT"] == 0
+# )
+
+# df_ui.loc[mask, "ADJUSTMENT_AMOUNT"] = df_ui.loc[mask, "BASIC_AMOUNT"]
+
+# # ---------------------------------------------------
+# # PRESERVE EDITOR STATE
+# # ---------------------------------------------------
+# if st.session_state.edited_df is None:
+#     st.session_state.edited_df = df_ui.copy()
+
+# # ---------------------------------------------------
+# # EDIT FORM
+# # ---------------------------------------------------
+# status_options = ["ACCEPTED", "REJECTED", ""]
+
+# st.subheader("📂 Pending Approvals")
+
+# with st.form("approval_form"):
+#     edited_df = st.data_editor(
+#         st.session_state.edited_df,
+#         key="approval_editor",
+#         hide_index=True,
+#         use_container_width=True,
+#         disabled=[c for c in df_ui.columns if c not in ["APPROVAL_1", "APPROVAL_2"]],
+#         column_config={
+#             "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
+#             "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
+#         }
+#     )
+
+#     submit = st.form_submit_button("💾 Save Bulk Approval")
+
+# # ---------------------------------------------------
+# # SAVE LOGIC (GITHUB)
+# # ---------------------------------------------------
+# if submit:
+#     try:
+#         st.session_state.save_in_progress = True
+
+#         df.loc[df_ui.index, ["APPROVAL_1", "APPROVAL_2"]] = \
+#             edited_df[["APPROVAL_1", "APPROVAL_2"]].values
+
+#         st.session_state.df = df.copy()
+#         st.session_state.edited_df = edited_df.copy()
+
+#         upload_excel_to_github(df)
+
+#         st.cache_data.clear()
+#         st.success("✅ Changes saved to GitHub successfully!")
+
+#     except Exception as e:
+#         st.error(f"❌ Save failed: {e}")
+
+#     finally:
+#         st.session_state.save_in_progress = False
+
+# # ---------------------------------------------------
+# # SEARCH
+# # ---------------------------------------------------
+# st.write("---")
+# search = st.text_input("🔍 Search")
+
+# if search:
+#     mask = st.session_state.edited_df.apply(
+#         lambda r: r.astype(str).str.contains(search, case=False).any(), axis=1
+#     )
+#     st.dataframe(st.session_state.edited_df[mask], use_container_width=True)
+# else:
+#     st.dataframe(st.session_state.edited_df, use_container_width=True)
+
+# # ---------------------------------------------------
+# # PROJECT-WISE EXPENSE SUMMARY
+# # ---------------------------------------------------
+# st.write("---")
+# st.subheader("💼 Project-wise Highest Expense")
+
+# # Using the same Excel data for summary
+# expense_df = df.copy()
+# expense_df["FINAL AMOUNT"] = pd.to_numeric(expense_df["FINAL AMOUNT"], errors="coerce").fillna(0)
+# expense_df["PROJECT_NAME"] = expense_df["PROJECT_NAME"].astype(str).str.upper().str.strip()
+
+# grp = expense_df.groupby(["PROJECT_NAME", "CATEGORY"])["FINAL AMOUNT"].sum().reset_index()
+# top_expenses = grp.sort_values("FINAL AMOUNT", ascending=False).groupby("PROJECT_NAME").head(1)
+
+# st.dataframe(top_expenses, use_container_width=True)
+
+# chart = alt.Chart(top_expenses).mark_bar().encode(
+#     x="PROJECT_NAME:N",
+#     y="FINAL AMOUNT:Q",
+#     color="CATEGORY:N",
+#     tooltip=["PROJECT_NAME", "CATEGORY", "FINAL AMOUNT"]
+# ).properties(height=400)
+
+# st.altair_chart(chart, use_container_width=True)
+
+# st.info("⚠️ This app overwrites the Excel file in GitHub. Enable backups if multiple users edit simultaneously.")
+
+# #GITHUB ---------
+# import io
+# import json
+# import base64
+# import pandas as pd
+# import streamlit as st
+# import requests
+# import altair as alt
+
+# # ---------------------------------------------------
+# # PAGE CONFIG
+# # ---------------------------------------------------
+# st.set_page_config(
+#     page_title="GitHub Excel Approval System",
+#     page_icon="📝",
+#     layout="wide",
+#     initial_sidebar_state="expanded"
+# )
+
+# st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management</h1>", unsafe_allow_html=True)
+# st.write("---")
+
+# # ---------------------------------------------------
+# # SESSION FLAGS
+# # ---------------------------------------------------
+# if "df" not in st.session_state:
+#     st.session_state.df = None
+
+# if "edited_df" not in st.session_state:
+#     st.session_state.edited_df = None
+
+# if "save_in_progress" not in st.session_state:
+#     st.session_state.save_in_progress = False
+
+# # ---------------------------------------------------
+# # LOAD SECRETS
+# # ---------------------------------------------------
+# required_secrets = ["GITHUB_TOKEN", "GITHUB_REPO", "GITHUB_FILE_PATH"]
+# for key in required_secrets:
+#     if key not in st.secrets:
+#         st.error(f"{key} missing in Streamlit secrets")
+#         st.stop()
+
+# GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
+# GITHUB_REPO = st.secrets["GITHUB_REPO"]          # e.g., "username/repo"
+# GITHUB_FILE_PATH = st.secrets["GITHUB_FILE_PATH"]  # e.g., "data/approval.xlsx"
+
+# HEADERS = {"Authorization": f"token {GITHUB_TOKEN}"}
+
+# # ---------------------------------------------------
+# # UTIL FUNCTIONS
+# # ---------------------------------------------------
+# @st.cache_data(ttl=300)
+# def download_excel_from_github():
+#     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
+#     r = requests.get(url, headers=HEADERS)
+#     r.raise_for_status()
+#     content = r.json()["content"]
+#     file_bytes = base64.b64decode(content)
+#     return pd.read_excel(io.BytesIO(file_bytes), engine="openpyxl")
+
+# def upload_excel_to_github(df):
+#     # Convert df to Excel bytes
+#     out = io.BytesIO()
+#     df.to_excel(out, index=False, engine="openpyxl")
+#     out.seek(0)
+#     content_b64 = base64.b64encode(out.read()).decode()
+
+#     # Get current file SHA
+#     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
+#     r = requests.get(url, headers=HEADERS)
+#     r.raise_for_status()
+#     sha = r.json()["sha"]
+
+#     # Push update
+#     payload = {
+#         "message": "Update approvals via Streamlit",
+#         "content": content_b64,
+#         "sha": sha
+#     }
+#     r = requests.put(url, headers=HEADERS, data=json.dumps(payload))
+#     r.raise_for_status()
+#     return r.json()
+
+# # ---------------------------------------------------
+# # LOAD DATA
+# # ---------------------------------------------------
+# if st.session_state.df is None:
+#     with st.spinner("📥 Downloading Excel from GitHub..."):
+#         df = download_excel_from_github()
+
+#         for col in ["APPROVAL_1", "APPROVAL_2"]:
+#             if col not in df.columns:
+#                 df[col] = ""
+
+#         st.session_state.df = df.reset_index(drop=True)
+
+# df = st.session_state.df.copy()
+
+# # ---------------------------------------------------
+# # FILTER (UI ONLY)
+# # ---------------------------------------------------
+# df_ui = df[
+#     ~(
+#         (df["APPROVAL_1"].astype(str).str.upper() == "REJECTED") &
+#         (df["APPROVAL_2"].astype(str).str.upper() == "REJECTED")
+#     )
+# ].copy()
+
+# # ---------------------------------------------------
+# # DISPLAY COLUMNS
+# # ---------------------------------------------------
+# DISPLAY_COLUMNS = [
+#     "STATUS_MATCHED_ESTIMATION", "GST %", "TDS %", "GST (Yes/No)",
+#     "TDS (Yes/No)", "BENEFICIARY PAN",
+#     "BENEFICIARY GSTIN", "BENEFICIARY ACCOUNT NO", "FINAL AMOUNT", "PROJECT_NAME",
+#     "CATEGORY", "FIXED_AMOUNT", "BALANCE_AMOUNT", "ADJUSTMENT_AMOUNT", "BASIC_AMOUNT",
+#     "APPROVAL_1", "APPROVAL_2", "BENEFICIARY NAME",
+#     "NARRATION", "Remarks", "DATE"
+# ]
+
+# df_ui = df_ui[DISPLAY_COLUMNS]
+
+# # ---------------------------------------------------
+# # AUTO ADJUSTMENT LOGIC
+# # ---------------------------------------------------
+# df_ui["BASIC_AMOUNT"] = pd.to_numeric(df_ui["BASIC_AMOUNT"], errors="coerce").fillna(0)
+# df_ui["ADJUSTMENT_AMOUNT"] = pd.to_numeric(df_ui["ADJUSTMENT_AMOUNT"], errors="coerce").fillna(0)
+
+# mask = (
+#     df_ui["STATUS_MATCHED_ESTIMATION"].fillna("").str.upper() == "ESTIMATION NOT MATCHED"
+# ) & (
+#     df_ui["BASIC_AMOUNT"] != 0
+# ) & (
+#     df_ui["ADJUSTMENT_AMOUNT"] == 0
+# )
+
+# df_ui.loc[mask, "ADJUSTMENT_AMOUNT"] = df_ui.loc[mask, "BASIC_AMOUNT"]
+
+# # ---------------------------------------------------
+# # PRESERVE EDITOR STATE
+# # ---------------------------------------------------
+# if st.session_state.edited_df is None:
+#     st.session_state.edited_df = df_ui.copy()
+
+# # ---------------------------------------------------
+# # EDIT FORM
+# # ---------------------------------------------------
+# status_options = ["ACCEPTED", "REJECTED", ""]
+
+# st.subheader("📂 Pending Approvals")
+
+# with st.form("approval_form"):
+#     edited_df = st.data_editor(
+#         st.session_state.edited_df,
+#         key="approval_editor",
+#         hide_index=True,
+#         use_container_width=True,
+#         disabled=[c for c in df_ui.columns if c not in ["APPROVAL_1", "APPROVAL_2"]],
+#         column_config={
+#             "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
+#             "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
+#         }
+#     )
+
+#     submit = st.form_submit_button("💾 Save Bulk Approval")
+
+# # ---------------------------------------------------
+# # SAVE LOGIC (GITHUB)
+# # ---------------------------------------------------
+# if submit:
+#     try:
+#         st.session_state.save_in_progress = True
+
+#         df.loc[df_ui.index, ["APPROVAL_1", "APPROVAL_2"]] = \
+#             edited_df[["APPROVAL_1", "APPROVAL_2"]].values
+
+#         st.session_state.df = df.copy()
+#         st.session_state.edited_df = edited_df.copy()
+
+#         upload_excel_to_github(df)
+
+#         st.cache_data.clear()
+#         st.success("✅ Changes saved to GitHub successfully!")
+
+#     except Exception as e:
+#         st.error(f"❌ Save failed: {e}")
+
+#     finally:
+#         st.session_state.save_in_progress = False
+
+# # ---------------------------------------------------
+# # SEARCH
+# # ---------------------------------------------------
+# st.write("---")
+# search = st.text_input("🔍 Search")
+
+# if search:
+#     mask = st.session_state.edited_df.apply(
+#         lambda r: r.astype(str).str.contains(search, case=False).any(), axis=1
+#     )
+#     st.dataframe(st.session_state.edited_df[mask], use_container_width=True)
+# else:
+#     st.dataframe(st.session_state.edited_df, use_container_width=True)
+
+# # ---------------------------------------------------
+# # PROJECT-WISE EXPENSE SUMMARY
+# # ---------------------------------------------------
+# st.write("---")
+# st.subheader("💼 Project-wise Highest Expense")
+
+# # Using the same Excel data for summary
+# expense_df = df.copy()
+# expense_df["FINAL AMOUNT"] = pd.to_numeric(expense_df["FINAL AMOUNT"], errors="coerce").fillna(0)
+# expense_df["PROJECT_NAME"] = expense_df["PROJECT_NAME"].astype(str).str.upper().str.strip()
+
+# grp = expense_df.groupby(["PROJECT_NAME", "CATEGORY"])["FINAL AMOUNT"].sum().reset_index()
+# top_expenses = grp.sort_values("FINAL AMOUNT", ascending=False).groupby("PROJECT_NAME").head(1)
+
+# st.dataframe(top_expenses, use_container_width=True)
+
+# chart = alt.Chart(top_expenses).mark_bar().encode(
+#     x="PROJECT_NAME:N",
+#     y="FINAL AMOUNT:Q",
+#     color="CATEGORY:N",
+#     tooltip=["PROJECT_NAME", "CATEGORY", "FINAL AMOUNT"]
+# ).properties(height=400)
+
+# st.altair_chart(chart, use_container_width=True)
+
+# st.info("⚠ This app overwrites the Excel file in GitHub. Enable backups if multiple users edit simultaneously.")
+
+
 import io
 import json
 import base64
+import time
 import pandas as pd
 import streamlit as st
 import requests
 import altair as alt
+
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 
 # ---------------------------------------------------
 # PAGE CONFIG
@@ -1901,20 +2370,70 @@ if "save_in_progress" not in st.session_state:
 # ---------------------------------------------------
 # LOAD SECRETS
 # ---------------------------------------------------
-required_secrets = ["GITHUB_TOKEN", "GITHUB_REPO", "GITHUB_FILE_PATH"]
+required_secrets = [
+    "GITHUB_TOKEN",
+    "GITHUB_REPO",
+    "GITHUB_FILE_PATH",
+    "GDRIVE_FILE_ID",
+    "GDRIVE_SERVICE_ACCOUNT"
+]
+
 for key in required_secrets:
     if key not in st.secrets:
         st.error(f"{key} missing in Streamlit secrets")
         st.stop()
 
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
-GITHUB_REPO = st.secrets["GITHUB_REPO"]          # e.g., "username/repo"
-GITHUB_FILE_PATH = st.secrets["GITHUB_FILE_PATH"]  # e.g., "data/approval.xlsx"
+GITHUB_REPO = st.secrets["GITHUB_REPO"]
+GITHUB_FILE_PATH = st.secrets["GITHUB_FILE_PATH"]
 
 HEADERS = {"Authorization": f"token {GITHUB_TOKEN}"}
 
 # ---------------------------------------------------
-# UTIL FUNCTIONS
+# GOOGLE DRIVE FUNCTIONS
+# ---------------------------------------------------
+def get_drive_service():
+    creds = Credentials.from_service_account_info(
+        st.secrets["GDRIVE_SERVICE_ACCOUNT"],
+        scopes=["https://www.googleapis.com/auth/drive"]
+    )
+    return build("drive", "v3", credentials=creds)
+
+
+def download_excel_from_drive():
+    service = get_drive_service()
+    request = service.files().get_media(fileId=st.secrets["GDRIVE_FILE_ID"])
+    fh = io.BytesIO()
+    downloader = MediaIoBaseDownload(fh, request)
+
+    done = False
+    while not done:
+        _, done = downloader.next_chunk()
+
+    fh.seek(0)
+    return pd.read_excel(fh, engine="openpyxl")
+
+
+def upload_excel_to_drive(df):
+    service = get_drive_service()
+
+    out = io.BytesIO()
+    df.to_excel(out, index=False, engine="openpyxl")
+    out.seek(0)
+
+    media = MediaIoBaseUpload(
+        out,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        resumable=True
+    )
+
+    service.files().update(
+        fileId=st.secrets["GDRIVE_FILE_ID"],
+        media_body=media
+    ).execute()
+
+# ---------------------------------------------------
+# GITHUB FUNCTIONS
 # ---------------------------------------------------
 @st.cache_data(ttl=300)
 def download_excel_from_github():
@@ -1925,34 +2444,34 @@ def download_excel_from_github():
     file_bytes = base64.b64decode(content)
     return pd.read_excel(io.BytesIO(file_bytes), engine="openpyxl")
 
+
 def upload_excel_to_github(df):
-    # Convert df to Excel bytes
     out = io.BytesIO()
     df.to_excel(out, index=False, engine="openpyxl")
     out.seek(0)
     content_b64 = base64.b64encode(out.read()).decode()
 
-    # Get current file SHA
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
     r = requests.get(url, headers=HEADERS)
     r.raise_for_status()
     sha = r.json()["sha"]
 
-    # Push update
     payload = {
         "message": "Update approvals via Streamlit",
         "content": content_b64,
         "sha": sha
     }
+
     r = requests.put(url, headers=HEADERS, data=json.dumps(payload))
     r.raise_for_status()
-    return r.json()
 
 # ---------------------------------------------------
-# LOAD DATA
+# INITIAL LOAD (DRIVE → GITHUB → APP)
 # ---------------------------------------------------
 if st.session_state.df is None:
-    with st.spinner("📥 Downloading Excel from GitHub..."):
+    with st.spinner("🔄 Syncing Excel from Drive → GitHub..."):
+        drive_df = download_excel_from_drive()
+        upload_excel_to_github(drive_df)
         df = download_excel_from_github()
 
         for col in ["APPROVAL_1", "APPROVAL_2"]:
@@ -1978,10 +2497,10 @@ df_ui = df[
 # ---------------------------------------------------
 DISPLAY_COLUMNS = [
     "STATUS_MATCHED_ESTIMATION", "GST %", "TDS %", "GST (Yes/No)",
-    "TDS (Yes/No)", "BENEFICIARY PAN",
-    "BENEFICIARY GSTIN", "BENEFICIARY ACCOUNT NO", "FINAL AMOUNT", "PROJECT_NAME",
-    "CATEGORY", "FIXED_AMOUNT", "BALANCE_AMOUNT", "ADJUSTMENT_AMOUNT", "BASIC_AMOUNT",
-    "APPROVAL_1", "APPROVAL_2", "BENEFICIARY NAME",
+    "TDS (Yes/No)", "BENEFICIARY PAN", "BENEFICIARY GSTIN",
+    "BENEFICIARY ACCOUNT NO", "FINAL AMOUNT", "PROJECT_NAME",
+    "CATEGORY", "FIXED_AMOUNT", "BALANCE_AMOUNT", "ADJUSTMENT_AMOUNT",
+    "BASIC_AMOUNT", "APPROVAL_1", "APPROVAL_2", "BENEFICIARY NAME",
     "NARRATION", "Remarks", "DATE"
 ]
 
@@ -1994,17 +2513,15 @@ df_ui["BASIC_AMOUNT"] = pd.to_numeric(df_ui["BASIC_AMOUNT"], errors="coerce").fi
 df_ui["ADJUSTMENT_AMOUNT"] = pd.to_numeric(df_ui["ADJUSTMENT_AMOUNT"], errors="coerce").fillna(0)
 
 mask = (
-    df_ui["STATUS_MATCHED_ESTIMATION"].fillna("").str.upper() == "ESTIMATION NOT MATCHED"
-) & (
-    df_ui["BASIC_AMOUNT"] != 0
-) & (
-    df_ui["ADJUSTMENT_AMOUNT"] == 0
+    (df_ui["STATUS_MATCHED_ESTIMATION"].fillna("").str.upper() == "ESTIMATION NOT MATCHED") &
+    (df_ui["BASIC_AMOUNT"] != 0) &
+    (df_ui["ADJUSTMENT_AMOUNT"] == 0)
 )
 
 df_ui.loc[mask, "ADJUSTMENT_AMOUNT"] = df_ui.loc[mask, "BASIC_AMOUNT"]
 
 # ---------------------------------------------------
-# PRESERVE EDITOR STATE
+# PRESERVE EDIT STATE
 # ---------------------------------------------------
 if st.session_state.edited_df is None:
     st.session_state.edited_df = df_ui.copy()
@@ -2032,12 +2549,10 @@ with st.form("approval_form"):
     submit = st.form_submit_button("💾 Save Bulk Approval")
 
 # ---------------------------------------------------
-# SAVE LOGIC (GITHUB)
+# SAVE LOGIC (GITHUB → 5s → DRIVE)
 # ---------------------------------------------------
 if submit:
     try:
-        st.session_state.save_in_progress = True
-
         df.loc[df_ui.index, ["APPROVAL_1", "APPROVAL_2"]] = \
             edited_df[["APPROVAL_1", "APPROVAL_2"]].values
 
@@ -2046,14 +2561,15 @@ if submit:
 
         upload_excel_to_github(df)
 
+        time.sleep(5)
+
+        upload_excel_to_drive(df)
+
         st.cache_data.clear()
-        st.success("✅ Changes saved to GitHub successfully!")
+        st.success("✅ Saved to GitHub and synced back to Drive!")
 
     except Exception as e:
         st.error(f"❌ Save failed: {e}")
-
-    finally:
-        st.session_state.save_in_progress = False
 
 # ---------------------------------------------------
 # SEARCH
@@ -2075,7 +2591,6 @@ else:
 st.write("---")
 st.subheader("💼 Project-wise Highest Expense")
 
-# Using the same Excel data for summary
 expense_df = df.copy()
 expense_df["FINAL AMOUNT"] = pd.to_numeric(expense_df["FINAL AMOUNT"], errors="coerce").fillna(0)
 expense_df["PROJECT_NAME"] = expense_df["PROJECT_NAME"].astype(str).str.upper().str.strip()
@@ -2094,6 +2609,5 @@ chart = alt.Chart(top_expenses).mark_bar().encode(
 
 st.altair_chart(chart, use_container_width=True)
 
-st.info("⚠️ This app overwrites the Excel file in GitHub. Enable backups if multiple users edit simultaneously.")
-
+st.info("⚠️ GitHub is the working copy. Google Drive is auto-synced after save.")
 
