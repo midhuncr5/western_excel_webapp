@@ -3186,7 +3186,6 @@
 # st.altair_chart(chart, use_container_width=True)
 
 # st.info("ℹ GitHub is the working copy. Google Drive is the final synced file.")
-
 import io
 import json
 import base64
@@ -3266,27 +3265,8 @@ def download_excel_from_drive():
     fh.seek(0)
     return pd.read_excel(fh, engine="openpyxl")
 
-# def upload_excel_to_drive(df):
-#     service = get_drive_service()
-#     out = io.BytesIO()
-#     df.to_excel(out, index=False, engine="openpyxl")
-#     out.seek(0)
-
-#     media = MediaIoBaseUpload(
-#         out,
-#         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-#         resumable=True
-#     )
-
-#     service.files().update(fileId=FILE_ID, media_body=media).execute()
-
 def upload_excel_to_drive(df):
     service = get_drive_service()
-
-    # Ensure numeric columns are numeric
-    df["BASIC_AMOUNT"] = pd.to_numeric(df["BASIC_AMOUNT"], errors="coerce").fillna(0)
-    df["ADJUSTMENT_AMOUNT"] = pd.to_numeric(df["ADJUSTMENT_AMOUNT"], errors="coerce").fillna(0)
-
     out = io.BytesIO()
     df.to_excel(out, index=False, engine="openpyxl")
     out.seek(0)
@@ -3298,7 +3278,6 @@ def upload_excel_to_drive(df):
     )
 
     service.files().update(fileId=FILE_ID, media_body=media).execute()
-
 
 # ---------------------------------------------------
 # GITHUB FUNCTIONS
@@ -3318,8 +3297,12 @@ def upload_excel_to_github(df):
     out.seek(0)
 
     content_b64 = base64.b64encode(out.read()).decode()
+
+    # Refresh SHA every time
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
-    sha = requests.get(url, headers=HEADERS).json()["sha"]
+    r_sha = requests.get(url, headers=HEADERS)
+    r_sha.raise_for_status()
+    sha = r_sha.json()["sha"]
 
     payload = {
         "message": "Updated via Streamlit Approval System",
@@ -3331,7 +3314,7 @@ def upload_excel_to_github(df):
     r.raise_for_status()
 
 # ---------------------------------------------------
-# ADJUSTMENT LOGIC (SINGLE SOURCE OF TRUTH)
+# ADJUSTMENT LOGIC
 # ---------------------------------------------------
 def apply_adjustment_logic(df):
     def clean_amount(series):
@@ -3348,14 +3331,16 @@ def apply_adjustment_logic(df):
     df["ADJUSTMENT_AMOUNT"] = clean_amount(df["ADJUSTMENT_AMOUNT"])
 
     mask = (
-        (df["STATUS_MATCHED_ESTIMATION"]
-         .fillna("")
-         .str.upper()
-         .str.strip() == "ESTIMATION NOT MATCHED") &
+        (df["STATUS_MATCHED_ESTIMATION"].fillna("").str.upper().str.strip() == "ESTIMATION NOT MATCHED") &
         (df["BASIC_AMOUNT"] != 0)
     )
 
     df.loc[mask, "ADJUSTMENT_AMOUNT"] = df.loc[mask, "BASIC_AMOUNT"]
+
+    # Force numeric types for Excel
+    df["ADJUSTMENT_AMOUNT"] = df["ADJUSTMENT_AMOUNT"].astype(float)
+    df["BASIC_AMOUNT"] = df["BASIC_AMOUNT"].astype(float)
+
     return df
 
 # ---------------------------------------------------
@@ -3365,6 +3350,10 @@ if st.session_state.df is None:
     with st.spinner("🔄 Syncing Excel..."):
         df = download_excel_from_drive()
         df = apply_adjustment_logic(df)
+
+        # Debug
+        st.write("Max ADJUSTMENT_AMOUNT before GitHub upload:", df["ADJUSTMENT_AMOUNT"].max())
+
         upload_excel_to_github(df)
         df = download_excel_from_github()
 
@@ -3436,6 +3425,9 @@ if submit:
             edited_df[["APPROVAL_1", "APPROVAL_2"]].values
 
         df = apply_adjustment_logic(df)
+
+        # Debug
+        st.write("Max ADJUSTMENT_AMOUNT before upload:", df["ADJUSTMENT_AMOUNT"].max())
 
         upload_excel_to_github(df)
         time.sleep(5)
