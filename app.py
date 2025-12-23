@@ -3186,6 +3186,288 @@
 # st.altair_chart(chart, use_container_width=True)
 
 # st.info("ℹ GitHub is the working copy. Google Drive is the final synced file.")
+# import io
+# import json
+# import base64
+# import time
+# import pandas as pd
+# import streamlit as st
+# import requests
+# import altair as alt
+
+# from google.oauth2.service_account import Credentials
+# from googleapiclient.discovery import build
+# from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
+
+# # ---------------------------------------------------
+# # PAGE CONFIG
+# # ---------------------------------------------------
+# st.set_page_config(
+#     page_title="GitHub Excel Approval System",
+#     page_icon="📝",
+#     layout="wide",
+#     initial_sidebar_state="expanded"
+# )
+
+# st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management</h1>", unsafe_allow_html=True)
+# st.write("---")
+
+# # ---------------------------------------------------
+# # SESSION STATE
+# # ---------------------------------------------------
+# if "df" not in st.session_state:
+#     st.session_state.df = None
+
+# # ---------------------------------------------------
+# # LOAD SECRETS
+# # ---------------------------------------------------
+# required_secrets = [
+#     "GITHUB_TOKEN",
+#     "GITHUB_REPO",
+#     "GITHUB_FILE_PATH",
+#     "FILE_ID",
+#     "SERVICE_ACCOUNT_JSON"
+# ]
+
+# for key in required_secrets:
+#     if key not in st.secrets:
+#         st.error(f"Missing secret: {key}")
+#         st.stop()
+
+# GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
+# GITHUB_REPO = st.secrets["GITHUB_REPO"]
+# GITHUB_FILE_PATH = st.secrets["GITHUB_FILE_PATH"]
+# FILE_ID = st.secrets["FILE_ID"]
+# SERVICE_ACCOUNT_JSON = st.secrets["SERVICE_ACCOUNT_JSON"]
+
+# HEADERS = {"Authorization": f"token {GITHUB_TOKEN}"}
+
+# # ---------------------------------------------------
+# # GOOGLE DRIVE FUNCTIONS
+# # ---------------------------------------------------
+# def get_drive_service():
+#     creds = Credentials.from_service_account_info(
+#         json.loads(SERVICE_ACCOUNT_JSON),
+#         scopes=["https://www.googleapis.com/auth/drive"]
+#     )
+#     return build("drive", "v3", credentials=creds)
+
+# def download_excel_from_drive():
+#     service = get_drive_service()
+#     request = service.files().get_media(fileId=FILE_ID)
+#     fh = io.BytesIO()
+#     downloader = MediaIoBaseDownload(fh, request)
+
+#     done = False
+#     while not done:
+#         _, done = downloader.next_chunk()
+
+#     fh.seek(0)
+#     return pd.read_excel(fh, engine="openpyxl")
+
+# def upload_excel_to_drive(df):
+#     service = get_drive_service()
+#     out = io.BytesIO()
+#     df.to_excel(out, index=False, engine="openpyxl")
+#     out.seek(0)
+
+#     media = MediaIoBaseUpload(
+#         out,
+#         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+#         resumable=True
+#     )
+
+#     service.files().update(fileId=FILE_ID, media_body=media).execute()
+
+# # ---------------------------------------------------
+# # GITHUB FUNCTIONS
+# # ---------------------------------------------------
+# @st.cache_data(ttl=300)
+# def download_excel_from_github():
+#     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
+#     r = requests.get(url, headers=HEADERS)
+#     r.raise_for_status()
+
+#     content = base64.b64decode(r.json()["content"])
+#     return pd.read_excel(io.BytesIO(content), engine="openpyxl")
+
+# def upload_excel_to_github(df):
+#     out = io.BytesIO()
+#     df.to_excel(out, index=False, engine="openpyxl")
+#     out.seek(0)
+
+#     content_b64 = base64.b64encode(out.read()).decode()
+
+#     # Refresh SHA every time
+#     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
+#     r_sha = requests.get(url, headers=HEADERS)
+#     r_sha.raise_for_status()
+#     sha = r_sha.json()["sha"]
+
+#     payload = {
+#         "message": "Updated via Streamlit Approval System",
+#         "content": content_b64,
+#         "sha": sha
+#     }
+
+#     r = requests.put(url, headers=HEADERS, data=json.dumps(payload))
+#     r.raise_for_status()
+
+# # ---------------------------------------------------
+# # ADJUSTMENT LOGIC
+# # ---------------------------------------------------
+# def apply_adjustment_logic(df):
+#     def clean_amount(series):
+#         return (
+#             series.astype(str)
+#             .str.replace(",", "", regex=False)
+#             .str.replace("₹", "", regex=False)
+#             .str.strip()
+#             .pipe(pd.to_numeric, errors="coerce")
+#             .fillna(0)
+#         )
+
+#     df["BASIC_AMOUNT"] = clean_amount(df["BASIC_AMOUNT"])
+#     df["ADJUSTMENT_AMOUNT"] = clean_amount(df["ADJUSTMENT_AMOUNT"])
+
+#     mask = (
+#         (df["STATUS_MATCHED_ESTIMATION"].fillna("").str.upper().str.strip() == "ESTIMATION NOT MATCHED") &
+#         (df["BASIC_AMOUNT"] != 0)
+#     )
+
+#     df.loc[mask, "ADJUSTMENT_AMOUNT"] = df.loc[mask, "BASIC_AMOUNT"]
+
+#     # Force numeric types for Excel
+#     df["ADJUSTMENT_AMOUNT"] = df["ADJUSTMENT_AMOUNT"].astype(float)
+#     df["BASIC_AMOUNT"] = df["BASIC_AMOUNT"].astype(float)
+
+#     return df
+
+# # ---------------------------------------------------
+# # INITIAL LOAD (Drive → Adjustment → GitHub → App)
+# # ---------------------------------------------------
+# if st.session_state.df is None:
+#     with st.spinner("🔄 Syncing Excel..."):
+#         df = download_excel_from_drive()
+#         df = apply_adjustment_logic(df)
+
+#         # Debug
+#         st.write("Max ADJUSTMENT_AMOUNT before GitHub upload:", df["ADJUSTMENT_AMOUNT"].max())
+
+#         upload_excel_to_github(df)
+#         df = download_excel_from_github()
+
+#         for col in ["APPROVAL_1", "APPROVAL_2"]:
+#             if col not in df.columns:
+#                 df[col] = ""
+
+#         st.session_state.df = df.reset_index(drop=True)
+
+# df = st.session_state.df.copy()
+
+# # ---------------------------------------------------
+# # FILTER (UI ONLY)
+# # ---------------------------------------------------
+# df_ui = df[
+#     ~(
+#         (df["APPROVAL_1"].astype(str).str.upper() == "REJECTED") &
+#         (df["APPROVAL_2"].astype(str).str.upper() == "REJECTED")
+#     )
+# ].copy()
+
+# # ---------------------------------------------------
+# # DISPLAY COLUMNS
+# # ---------------------------------------------------
+# DISPLAY_COLUMNS = [
+#     "STATUS_MATCHED_ESTIMATION", "GST %", "TDS %",
+#     "GST (Yes/No)", "TDS (Yes/No)",
+#     "BENEFICIARY PAN", "BENEFICIARY GSTIN",
+#     "BENEFICIARY ACCOUNT NO", "FINAL AMOUNT",
+#     "PROJECT_NAME", "CATEGORY",
+#     "FIXED_AMOUNT", "BALANCE_AMOUNT",
+#     "ADJUSTMENT_AMOUNT", "BASIC_AMOUNT",
+#     "APPROVAL_1", "APPROVAL_2",
+#     "BENEFICIARY NAME", "NARRATION",
+#     "Remarks", "DATE"
+# ]
+
+# df_ui = df_ui[DISPLAY_COLUMNS]
+
+# # ---------------------------------------------------
+# # DATA EDITOR
+# # ---------------------------------------------------
+# st.subheader("📂 Pending Approvals")
+
+# with st.form("approval_form"):
+#     edited_df = st.data_editor(
+#         df_ui,
+#         hide_index=True,
+#         use_container_width=True,
+#         disabled=[c for c in df_ui.columns if c not in ["APPROVAL_1", "APPROVAL_2"]],
+#         column_config={
+#             "APPROVAL_1": st.column_config.SelectboxColumn(
+#                 "APPROVAL_1", options=["", "ACCEPTED", "REJECTED"]
+#             ),
+#             "APPROVAL_2": st.column_config.SelectboxColumn(
+#                 "APPROVAL_2", options=["", "ACCEPTED", "REJECTED"]
+#             ),
+#         }
+#     )
+
+#     submit = st.form_submit_button("💾 Save Bulk Approval")
+
+# # ---------------------------------------------------
+# # SAVE (Adjustment → GitHub → Drive)
+# # ---------------------------------------------------
+# if submit:
+#     try:
+#         df.loc[df_ui.index, ["APPROVAL_1", "APPROVAL_2"]] = \
+#             edited_df[["APPROVAL_1", "APPROVAL_2"]].values
+
+#         df = apply_adjustment_logic(df)
+
+#         # Debug
+#         st.write("Max ADJUSTMENT_AMOUNT before upload:", df["ADJUSTMENT_AMOUNT"].max())
+
+#         upload_excel_to_github(df)
+#         time.sleep(5)
+#         upload_excel_to_drive(df)
+
+#         st.session_state.df = df.copy()
+#         st.cache_data.clear()
+
+#         st.success("✅ Saved successfully. Adjustment Amount updated.")
+#         st.rerun()
+
+#     except Exception as e:
+#         st.error(f"❌ Save failed: {e}")
+
+# # ---------------------------------------------------
+# # PROJECT SUMMARY
+# # ---------------------------------------------------
+# st.write("---")
+# st.subheader("💼 Project-wise Highest Expense")
+
+# expense_df = df.copy()
+# expense_df["FINAL AMOUNT"] = pd.to_numeric(expense_df["FINAL AMOUNT"], errors="coerce").fillna(0)
+# expense_df["PROJECT_NAME"] = expense_df["PROJECT_NAME"].astype(str).str.upper().str.strip()
+
+# grp = expense_df.groupby(["PROJECT_NAME", "CATEGORY"])["FINAL AMOUNT"].sum().reset_index()
+# top_expenses = grp.sort_values("FINAL AMOUNT", ascending=False).groupby("PROJECT_NAME").head(1)
+
+# st.dataframe(top_expenses, use_container_width=True)
+
+# chart = alt.Chart(top_expenses).mark_bar().encode(
+#     x="PROJECT_NAME:N",
+#     y="FINAL AMOUNT:Q",
+#     color="CATEGORY:N",
+#     tooltip=["PROJECT_NAME", "CATEGORY", "FINAL AMOUNT"]
+# ).properties(height=400)
+
+# st.altair_chart(chart, use_container_width=True)
+
+# st.info("ℹ GitHub is the working copy. Google Drive is the final synced file.")
+
 import io
 import json
 import base64
@@ -3344,24 +3626,38 @@ def apply_adjustment_logic(df):
     return df
 
 # ---------------------------------------------------
-# INITIAL LOAD (Drive → Adjustment → GitHub → App)
+# INITIAL LOAD AND AUTO SYNC
 # ---------------------------------------------------
-if st.session_state.df is None:
-    with st.spinner("🔄 Syncing Excel..."):
-        df = download_excel_from_drive()
-        df = apply_adjustment_logic(df)
+def load_and_sync_excel():
+    """
+    1. Download Excel from Drive
+    2. Apply adjustment logic
+    3. Upload immediately to GitHub
+    4. Return updated DataFrame
+    """
+    with st.spinner("🔄 Syncing Excel from Drive and updating GitHub..."):
+        df_drive = download_excel_from_drive()
+        df_adjusted = apply_adjustment_logic(df_drive)
 
         # Debug
-        st.write("Max ADJUSTMENT_AMOUNT before GitHub upload:", df["ADJUSTMENT_AMOUNT"].max())
+        st.write("Max ADJUSTMENT_AMOUNT after adjustment:", df_adjusted["ADJUSTMENT_AMOUNT"].max())
 
-        upload_excel_to_github(df)
-        df = download_excel_from_github()
+        # Upload automatically to GitHub
+        upload_excel_to_github(df_adjusted)
 
+        # Optional: reload from GitHub to confirm sync
+        df_github = download_excel_from_github()
+
+        # Ensure APPROVAL columns exist
         for col in ["APPROVAL_1", "APPROVAL_2"]:
-            if col not in df.columns:
-                df[col] = ""
+            if col not in df_github.columns:
+                df_github[col] = ""
 
-        st.session_state.df = df.reset_index(drop=True)
+        return df_github.reset_index(drop=True)
+
+# Load data into session state
+if st.session_state.df is None:
+    st.session_state.df = load_and_sync_excel()
 
 df = st.session_state.df.copy()
 
@@ -3467,5 +3763,4 @@ chart = alt.Chart(top_expenses).mark_bar().encode(
 st.altair_chart(chart, use_container_width=True)
 
 st.info("ℹ GitHub is the working copy. Google Drive is the final synced file.")
-
 
