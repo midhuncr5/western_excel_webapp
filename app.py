@@ -1479,7 +1479,6 @@ for key in required_secrets:
 json_key = json.loads(st.secrets["SERVICE_ACCOUNT_JSON"])
 FILE_ID = st.secrets["FILE_ID"]
 SHEET_FILE_ID = st.secrets["SHEET_FILE_ID"]
-FOLDER_ID = "1PnU8vSLG6w30kCfCb9Ho4lNqoCYwrShH"
 
 SCOPES = [
     "https://www.googleapis.com/auth/drive",
@@ -1520,7 +1519,7 @@ def upload_excel(file_id, df):
     ).execute()
 
 # ---------------------------------------------------
-# LOAD DATA (SESSION SAFE) — NO ROW_ID
+# LOAD DATA (NO ROW_ID)
 # ---------------------------------------------------
 if "df" not in st.session_state:
     with st.spinner("Downloading Excel from Drive..."):
@@ -1535,12 +1534,12 @@ if "df" not in st.session_state:
 df = st.session_state.df.copy()
 
 # ---------------------------------------------------
-# UI FILTER (ONLY DISPLAY)
+# FILTER REJECTED RECORDS (UI ONLY)
 # ---------------------------------------------------
 df_ui = df[
     ~(
-        (df["APPROVAL_1"].str.upper() == "REJECTED") &
-        (df["APPROVAL_2"].str.upper() == "REJECTED")
+        (df["APPROVAL_1"].astype(str).str.upper() == "REJECTED") &
+        (df["APPROVAL_2"].astype(str).str.upper() == "REJECTED")
     )
 ].copy()
 
@@ -1564,9 +1563,6 @@ df_ui = df_ui[DISPLAY_COLUMNS]
 df_ui["BASIC_AMOUNT"] = pd.to_numeric(df_ui["BASIC_AMOUNT"], errors="coerce").fillna(0)
 df_ui["ADJUSTMENT_AMOUNT"] = pd.to_numeric(df_ui["ADJUSTMENT_AMOUNT"], errors="coerce").fillna(0)
 
-if "STATUS_MATCHED_ESTIMATION" not in df_ui.columns:
-    df_ui["STATUS_MATCHED_ESTIMATION"] = ""
-
 mask = (
     df_ui["STATUS_MATCHED_ESTIMATION"].fillna("").str.upper() == "ESTIMATION NOT MATCHED"
 ) & (
@@ -1578,7 +1574,7 @@ mask = (
 df_ui.loc[mask, "ADJUSTMENT_AMOUNT"] = df_ui.loc[mask, "BASIC_AMOUNT"]
 
 # ---------------------------------------------------
-# EDIT FORM
+# EDIT FORM (EDITABLE FIX)
 # ---------------------------------------------------
 status_options = ["ACCEPTED", "REJECTED", ""]
 
@@ -1587,8 +1583,13 @@ st.subheader("📂 Pending Approvals")
 with st.form("approval_form"):
     edited_df = st.data_editor(
         df_ui,
+        key="approval_editor",  # 🔥 REQUIRED
         hide_index=True,
         use_container_width=True,
+        disabled=[
+            c for c in df_ui.columns
+            if c not in ["APPROVAL_1", "APPROVAL_2"]
+        ],
         column_config={
             "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
             "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
@@ -1597,7 +1598,7 @@ with st.form("approval_form"):
     submit = st.form_submit_button("💾 Save Bulk Approval")
 
 # ---------------------------------------------------
-# SAVE — INDEX BASED (NO ROW_ID)
+# SAVE (NO ROW_ID)
 # ---------------------------------------------------
 if submit:
     try:
