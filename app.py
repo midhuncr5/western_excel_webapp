@@ -2244,7 +2244,7 @@ if st.session_state.edited_df is None:
 # ---------------------------------------------------
 # EDIT FORM
 # ---------------------------------------------------
-status_options = ["ACCEPTED", "REJECTED","PAID", ""]
+status_options = ["ACCEPTED", "REJECTED", ""]
 
 st.subheader("📂 Pending Approvals")
 
