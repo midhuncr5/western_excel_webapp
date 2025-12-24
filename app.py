@@ -2332,7 +2332,6 @@
 
 #======================================================================================================================================================
 
-
 import io
 import json
 import base64
@@ -2366,9 +2365,6 @@ if "df" not in st.session_state:
 if "edited_df" not in st.session_state:
     st.session_state.edited_df = None
 
-if "save_in_progress" not in st.session_state:
-    st.session_state.save_in_progress = False
-
 # ---------------------------------------------------
 # SECRETS
 # ---------------------------------------------------
@@ -2379,8 +2375,8 @@ for key in required_secrets:
         st.stop()
 
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
-GITHUB_REPO = st.secrets["GITHUB_REPO"]          # username/repo
-GITHUB_FILE_PATH = st.secrets["GITHUB_FILE_PATH"]  # data/file.xlsx
+GITHUB_REPO = st.secrets["GITHUB_REPO"]
+GITHUB_FILE_PATH = st.secrets["GITHUB_FILE_PATH"]
 
 HEADERS = {"Authorization": f"token {GITHUB_TOKEN}"}
 
@@ -2433,6 +2429,13 @@ if st.session_state.df is None:
 df = st.session_state.df.copy()
 
 # ---------------------------------------------------
+# CREATE SAFE ROW KEY (NO ROW_ID)
+# ---------------------------------------------------
+KEY_COLUMNS = ["DATE", "BENEFICIARY ACCOUNT NO", "FINAL AMOUNT"]
+
+df["_ROW_KEY"] = df[KEY_COLUMNS].astype(str).agg("|".join, axis=1)
+
+# ---------------------------------------------------
 # FILTER (UI ONLY)
 # ---------------------------------------------------
 df_ui = df[
@@ -2441,6 +2444,8 @@ df_ui = df[
         (df["APPROVAL_2"].astype(str).str.upper() == "REJECTED")
     )
 ].copy()
+
+df_ui["_ROW_KEY"] = df_ui[KEY_COLUMNS].astype(str).agg("|".join, axis=1)
 
 # ---------------------------------------------------
 # DISPLAY COLUMNS
@@ -2456,7 +2461,7 @@ DISPLAY_COLUMNS = [
     "BENEFICIARY NAME", "NARRATION", "Remarks", "DATE"
 ]
 
-df_ui = df_ui[DISPLAY_COLUMNS]
+df_ui = df_ui[DISPLAY_COLUMNS + ["_ROW_KEY"]]
 
 # ---------------------------------------------------
 # AUTO ADJUSTMENT LOGIC
@@ -2478,7 +2483,7 @@ if st.session_state.edited_df is None:
     st.session_state.edited_df = df_ui.copy()
 
 # ---------------------------------------------------
-# EDITOR
+# EDITOR (ALL COLUMNS EDITABLE)
 # ---------------------------------------------------
 status_options = ["", "ACCEPTED", "REJECTED"]
 
@@ -2486,8 +2491,7 @@ st.subheader("📂 Pending Approvals")
 
 with st.form("approval_form"):
     edited_df = st.data_editor(
-        st.session_state.edited_df,
-        key="approval_editor",
+        st.session_state.edited_df.drop(columns=["_ROW_KEY"]),
         hide_index=True,
         use_container_width=True,
         column_config={
@@ -2499,18 +2503,21 @@ with st.form("approval_form"):
             ),
         }
     )
-
     submit = st.form_submit_button("💾 Save All Changes")
 
 # ---------------------------------------------------
-# SAVE TO GITHUB (ALL COLUMNS)
+# SAVE LOGIC (CORRECT & SAFE)
 # ---------------------------------------------------
 if submit:
     try:
-        st.session_state.save_in_progress = True
+        edited_df["_ROW_KEY"] = st.session_state.edited_df["_ROW_KEY"].values
 
-        # Update ALL edited columns
-        df.loc[df_ui.index, edited_df.columns] = edited_df.values
+        for _, row in edited_df.iterrows():
+            key = row["_ROW_KEY"]
+            mask = df["_ROW_KEY"] == key
+            df.loc[mask, edited_df.columns.drop("_ROW_KEY")] = row.drop("_ROW_KEY").values
+
+        df.drop(columns=["_ROW_KEY"], inplace=True, errors="ignore")
 
         st.session_state.df = df.copy()
         st.session_state.edited_df = edited_df.copy()
@@ -2518,55 +2525,23 @@ if submit:
         upload_excel_to_github(df)
         st.cache_data.clear()
 
-        st.success("✅ All column changes saved to GitHub successfully!")
+        st.success("✅ All column changes saved correctly to GitHub!")
 
     except Exception as e:
         st.error(f"❌ Save failed: {e}")
 
-    finally:
-        st.session_state.save_in_progress = False
-
 # ---------------------------------------------------
-# SEARCH
-# ---------------------------------------------------
-st.write("---")
-search = st.text_input("🔍 Search")
-
-if search:
-    mask = st.session_state.edited_df.apply(
-        lambda r: r.astype(str).str.contains(search, case=False).any(), axis=1
-    )
-    st.dataframe(st.session_state.edited_df[mask], use_container_width=True)
-else:
-    st.dataframe(st.session_state.edited_df, use_container_width=True)
-
-# ---------------------------------------------------
-# PROJECT-WISE SUMMARY
+# PROJECT SUMMARY
 # ---------------------------------------------------
 st.write("---")
 st.subheader("💼 Project-wise Highest Expense")
 
 expense_df = df.copy()
-expense_df["FINAL AMOUNT"] = pd.to_numeric(
-    expense_df["FINAL AMOUNT"], errors="coerce"
-).fillna(0)
+expense_df["FINAL AMOUNT"] = pd.to_numeric(expense_df["FINAL AMOUNT"], errors="coerce").fillna(0)
+expense_df["PROJECT_NAME"] = expense_df["PROJECT_NAME"].astype(str).str.upper().str.strip()
 
-expense_df["PROJECT_NAME"] = (
-    expense_df["PROJECT_NAME"].astype(str).str.upper().str.strip()
-)
-
-grp = (
-    expense_df
-    .groupby(["PROJECT_NAME", "CATEGORY"])["FINAL AMOUNT"]
-    .sum()
-    .reset_index()
-)
-
-top_expenses = (
-    grp.sort_values("FINAL AMOUNT", ascending=False)
-    .groupby("PROJECT_NAME")
-    .head(1)
-)
+grp = expense_df.groupby(["PROJECT_NAME", "CATEGORY"])["FINAL AMOUNT"].sum().reset_index()
+top_expenses = grp.sort_values("FINAL AMOUNT", ascending=False).groupby("PROJECT_NAME").head(1)
 
 st.dataframe(top_expenses, use_container_width=True)
 
@@ -2581,7 +2556,7 @@ st.altair_chart(chart, use_container_width=True)
 
 st.info(
     "⚠ This app overwrites the Excel file in GitHub. "
-    "Enable backups if multiple users edit simultaneously."
+    "Avoid multiple users editing at the same time."
 )
 
 
