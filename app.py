@@ -411,23 +411,32 @@ status_options = ["ACCEPTED", "REJECTED", "PAID", ""]
 
 st.subheader("📂 Pending Approvals")
 
-# 🔥 RESET DATA_EDITOR CACHE
-if "approval_editor" in st.session_state:
-    del st.session_state["approval_editor"]
+# 🔥 normalize existing values
+valid_status = ["ACCEPTED", "REJECTED", "PAID", ""]
+
+for col in ["APPROVAL_1", "APPROVAL_2"]:
+    st.session_state.edited_df[col] = (
+        st.session_state.edited_df[col]
+        .astype(str)
+        .str.upper()
+        .where(lambda x: x.isin(valid_status), "")
+    )
 
 with st.form("approval_form"):
     edited_df = st.data_editor(
         st.session_state.edited_df,
-        key="approval_editor",
+        key="approval_editor_v2",   # 🔥 NEW KEY
         hide_index=True,
         use_container_width=True,
         disabled=[c for c in df_ui.columns if c not in ["APPROVAL_1", "APPROVAL_2"]],
         column_config={
             "APPROVAL_1": st.column_config.SelectboxColumn(
-                "APPROVAL_1", options=status_options
+                "APPROVAL_1",
+                options=status_options
             ),
             "APPROVAL_2": st.column_config.SelectboxColumn(
-                "APPROVAL_2", options=status_options
+                "APPROVAL_2",
+                options=status_options
             ),
         }
     )
