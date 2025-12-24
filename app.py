@@ -388,9 +388,32 @@ if st.session_state.edited_df is None:
 # EDIT FORM
 # # ---------------------------------------------------
 
-status_options = ["ACCEPTED", "REJECTED",  ""]
+# status_options = ["ACCEPTED", "REJECTED", "PAID", ""]
+
+# st.subheader("📂 Pending Approvals")
+
+# with st.form("approval_form"):
+#     edited_df = st.data_editor(
+#         st.session_state.edited_df,
+#         key="approval_editor",
+#         hide_index=True,
+#         use_container_width=True,
+#         disabled=[c for c in df_ui.columns if c not in ["APPROVAL_1", "APPROVAL_2"]],
+#         column_config={
+#             "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
+#             "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
+#         }
+#     )
+
+#     submit = st.form_submit_button("💾 Save Bulk Approval")
+
+status_options = ["ACCEPTED", "REJECTED", "PAID", ""]
 
 st.subheader("📂 Pending Approvals")
+
+# 🔥 RESET DATA_EDITOR CACHE
+if "approval_editor" in st.session_state:
+    del st.session_state["approval_editor"]
 
 with st.form("approval_form"):
     edited_df = st.data_editor(
@@ -400,8 +423,12 @@ with st.form("approval_form"):
         use_container_width=True,
         disabled=[c for c in df_ui.columns if c not in ["APPROVAL_1", "APPROVAL_2"]],
         column_config={
-            "APPROVAL_1": st.column_config.SelectboxColumn("APPROVAL_1", options=status_options),
-            "APPROVAL_2": st.column_config.SelectboxColumn("APPROVAL_2", options=status_options),
+            "APPROVAL_1": st.column_config.SelectboxColumn(
+                "APPROVAL_1", options=status_options
+            ),
+            "APPROVAL_2": st.column_config.SelectboxColumn(
+                "APPROVAL_2", options=status_options
+            ),
         }
     )
 
