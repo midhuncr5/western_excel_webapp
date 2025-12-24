@@ -2261,9 +2261,6 @@ with st.form("approval_form"):
         }
     )
 
-   
-
-
     submit = st.form_submit_button("💾 Save Bulk Approval")
 
 # ---------------------------------------------------
