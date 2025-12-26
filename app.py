@@ -524,8 +524,8 @@ required_secrets = [
     "GITHUB_TOKEN",
     "GITHUB_REPO",
     "GITHUB_FILE_PATH",
-    "GDRIVE_FILE_ID",
-    "GDRIVE_SERVICE_ACCOUNT"
+    "FILE_ID",
+    "SERVICE_ACCOUNT_JSON"
 ]
 
 for key in required_secrets:
@@ -544,7 +544,7 @@ HEADERS = {"Authorization": f"token {GITHUB_TOKEN}"}
 # ---------------------------------------------------
 def get_drive_service():
     creds = Credentials.from_service_account_info(
-        st.secrets["GDRIVE_SERVICE_ACCOUNT"],
+        st.secrets["SERVICE_ACCOUNT_JSON"],
         scopes=["https://www.googleapis.com/auth/drive"]
     )
     return build("drive", "v3", credentials=creds)
@@ -552,7 +552,7 @@ def get_drive_service():
 
 def download_excel_from_drive():
     service = get_drive_service()
-    request = service.files().get_media(fileId=st.secrets["GDRIVE_FILE_ID"])
+    request = service.files().get_media(fileId=st.secrets["FILE_ID"])
     fh = io.BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
 
