@@ -990,11 +990,11 @@ with st.form("approval_form"):
         column_config={
             "APPROVAL_1": st.column_config.SelectboxColumn(
                 "APPROVAL_1",
-                options=["","ACCEPTED", "REJECTED","PAID"]
+                options=["","ACCEPTED", "REJECTED","PAID","HOLD"]
             ),
             "APPROVAL_2": st.column_config.SelectboxColumn(
                 "APPROVAL_2",
-                options=["", "ACCEPTED", "REJECTED","PAID"]
+                options=["", "ACCEPTED", "REJECTED","PAID","HOLD"]
             )
         }
     )
