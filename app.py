@@ -1071,7 +1071,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System.</h1>", unsafe_allow_html=True)
 st.write("---")
 
 # ---------------------------------------------------
@@ -1241,32 +1241,11 @@ mask = (
 
 df_ui.loc[mask, "ADJUSTMENT_AMOUNT"] = df_ui.loc[mask, "BASIC_AMOUNT"]
 
-TEXT_COLS = ["COST_CENTER", "PARTICULAR", "LEDGER_UNDER", "TO", "BY"]
-
-for col in TEXT_COLS:
-    df_ui[col] = (
-        df_ui[col]
-        .astype("string")          # ← fixes ColumnDataKind.FLOAT
-        .replace(["0", "0.0", "<NA>"], "")
-    )
 
 
 if st.session_state.edited_df is None:
     st.session_state.edited_df = df_ui.copy()
 
-# ---------------------------------------------------
-# 🔹 MINIMAL UI CHANGE (ONLY THIS BLOCK ADDED)
-# ---------------------------------------------------
-
-# TEXT_COLS = ["COST_CENTER", "PARTICULAR", "LEDGER_UNDER", "TO", "BY"]
-
-# for col in TEXT_COLS:
-#     st.session_state.edited_df[col] = (
-#         st.session_state.edited_df[col]
-#         .astype("string")   # ← THIS is the critical fix
-#         .replace("0", "")
-#         .replace("0.0", "")
-#     )
 
 
 
@@ -1304,14 +1283,57 @@ st.subheader("📂 Pending Approvals")
 
 #     submit = st.form_submit_button("💾 Save Bulk Approval")
 
+# with st.form("approval_form"):
+#     edited_df = st.data_editor(
+#         st.session_state.edited_df,
+#         hide_index=True,
+#         use_container_width=True,
+#         disabled=[
+#             c for c in df_ui.columns
+#             if c not in ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT", "COST_CENTER", "PARTICULAR", "LEDGER_UNDER", "TO", "BY"]
+#         ],
+#         column_config={
+#             "APPROVAL_1": st.column_config.SelectboxColumn(
+#                 "APPROVAL_1",
+#                 options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
+#             ),
+#             "APPROVAL_2": st.column_config.SelectboxColumn(
+#                 "APPROVAL_2",
+#                 options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
+#             ),
+#             "BASIC_AMOUNT": st.column_config.NumberColumn(
+#                 "BASIC_AMOUNT",
+#                 min_value=0,
+#                 step=1,
+#                 format="%.2f"
+#             ),
+#             # Make these text columns editable
+#             "COST_CENTER": st.column_config.TextColumn("COST_CENTER"),
+#             "PARTICULAR": st.column_config.TextColumn("PARTICULAR"),
+#             "LEDGER_UNDER": st.column_config.TextColumn("LEDGER_UNDER"),
+#             "TO": st.column_config.TextColumn("TO"),
+#             "BY": st.column_config.TextColumn("BY")
+#         }
+#     )
+
+#     submit = st.form_submit_button("💾 Save Bulk Approval")
+
+
 with st.form("approval_form"):
     edited_df = st.data_editor(
-        st.session_state.edited_df,
+        st.session_state.edited_df.assign(
+            COST_CENTER=st.session_state.edited_df["COST_CENTER"].astype(str).replace("0", ""),
+            PARTICULAR=st.session_state.edited_df["PARTICULAR"].astype(str).replace("0", ""),
+            LEDGER_UNDER=st.session_state.edited_df["LEDGER_UNDER"].astype(str).replace("0", ""),
+            TO=st.session_state.edited_df["TO"].astype(str).replace("0", ""),
+            BY=st.session_state.edited_df["BY"].astype(str).replace("0", "")
+        ),
         hide_index=True,
         use_container_width=True,
         disabled=[
             c for c in df_ui.columns
-            if c not in ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT", "COST_CENTER", "PARTICULAR", "LEDGER_UNDER", "TO", "BY"]
+            if c not in ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
+                         "COST_CENTER", "PARTICULAR", "LEDGER_UNDER", "TO", "BY"]
         ],
         column_config={
             "APPROVAL_1": st.column_config.SelectboxColumn(
@@ -1328,7 +1350,6 @@ with st.form("approval_form"):
                 step=1,
                 format="%.2f"
             ),
-            # Make these text columns editable
             "COST_CENTER": st.column_config.TextColumn("COST_CENTER"),
             "PARTICULAR": st.column_config.TextColumn("PARTICULAR"),
             "LEDGER_UNDER": st.column_config.TextColumn("LEDGER_UNDER"),
@@ -1338,6 +1359,7 @@ with st.form("approval_form"):
     )
 
     submit = st.form_submit_button("💾 Save Bulk Approval")
+
 
 
 # ---------------------------------------------------
