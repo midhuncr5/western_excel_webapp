@@ -1245,6 +1245,19 @@ if st.session_state.edited_df is None:
     st.session_state.edited_df = df_ui.copy()
 
 # ---------------------------------------------------
+# 🔹 MINIMAL UI CHANGE (ONLY THIS BLOCK ADDED)
+# ---------------------------------------------------
+TEXT_COLS = ["COST_CENTER", "PARTICULAR", "LEDGER_UNDER", "TO", "BY"]
+
+for col in TEXT_COLS:
+    st.session_state.edited_df[col] = (
+        st.session_state.edited_df[col]
+        .astype(str)
+        .replace(["0", "0.0", "nan"], "")
+    )
+
+
+# ---------------------------------------------------
 # EDITOR
 # ---------------------------------------------------
 st.subheader("📂 Pending Approvals")
