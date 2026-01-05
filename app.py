@@ -1227,6 +1227,13 @@ DISPLAY_COLUMNS = [
 
 df_ui = df_ui[DISPLAY_COLUMNS]
 
+# ---- FORCE TEXT COLUMNS AS STRING (CRITICAL FIX) ----
+TEXT_COLS = ["COST_CENTER", "PARTICULAR", "LEDGER_UNDER", "TO", "BY"]
+
+for col in TEXT_COLS:
+    df_ui[col] = df_ui[col].astype(str).replace("nan", "").replace("0", "")
+
+
 # ---------------------------------------------------
 # AUTO ADJUSTMENT LOGIC
 # ---------------------------------------------------
