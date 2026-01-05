@@ -1231,7 +1231,7 @@ df_ui = df_ui[DISPLAY_COLUMNS]
 TEXT_COLS = ["COST_CENTER", "PARTICULAR", "LEDGER_UNDER", "TO", "BY"]
 
 for col in TEXT_COLS:
-    df_ui[col] = df_ui[col].astype(str).replace("nan", "").replace("0", "")
+    df_ui[col] = df_ui[col].astype(str).replace("nan", "").replace("0", "").replace("0.0","").replace("0.00","")
 
 
 # ---------------------------------------------------
@@ -1329,11 +1329,11 @@ st.subheader("📂 Pending Approvals")
 with st.form("approval_form"):
     edited_df = st.data_editor(
         st.session_state.edited_df.assign(
-            COST_CENTER=st.session_state.edited_df["COST_CENTER"].astype(str).replace("0", ""),
-            PARTICULAR=st.session_state.edited_df["PARTICULAR"].astype(str).replace("0", ""),
-            LEDGER_UNDER=st.session_state.edited_df["LEDGER_UNDER"].astype(str).replace("0", ""),
-            TO=st.session_state.edited_df["TO"].astype(str).replace("0", ""),
-            BY=st.session_state.edited_df["BY"].astype(str).replace("0", "")
+            COST_CENTER=st.session_state.edited_df["COST_CENTER"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
+            PARTICULAR=st.session_state.edited_df["PARTICULAR"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
+            LEDGER_UNDER=st.session_state.edited_df["LEDGER_UNDER"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
+            TO=st.session_state.edited_df["TO"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
+            BY=st.session_state.edited_df["BY"].astype(str).replace("0", "").replace("0.0","").replace("0.00","")
         ),
         hide_index=True,
         use_container_width=True,
