@@ -1443,6 +1443,7 @@ top_expenses = grp.sort_values("FINAL AMOUNT", ascending=False).groupby("PROJECT
 
 st.dataframe(top_expenses, use_container_width=True)
 
+
 chart = alt.Chart(top_expenses).mark_bar().encode(
     x="PROJECT_NAME:N",
     y="FINAL AMOUNT:Q",
