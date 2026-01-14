@@ -1405,7 +1405,7 @@ if submit:
 
         # Update df with edited values
         df.loc[df_ui.index, ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
-                             "COST_CENTER","PARTICULAR","LEDGER_UNDER","TO","BY"]] = \
+                             "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]] = \
             edited_df[["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
                        "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]].values
 
