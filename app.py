@@ -1222,13 +1222,13 @@ DISPLAY_COLUMNS = [
     "ADJUSTMENT_AMOUNT", "BASIC_AMOUNT",
     "APPROVAL_1", "APPROVAL_2",
     "BENEFICIARY NAME", "NARRATION",
-    "Remarks", "DATE","COST_CENTER","PARTICULAR","LEDGER_UNDER","TO","BY" 
+    "Remarks", "DATE","COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY" 
 ]
 
 df_ui = df_ui[DISPLAY_COLUMNS]
 
 # ---- FORCE TEXT COLUMNS AS STRING (CRITICAL FIX) ----
-TEXT_COLS = ["COST_CENTER", "PARTICULAR", "LEDGER_UNDER", "TO", "BY"]
+TEXT_COLS = ["COST_CENTER", "LEDGER_NAME", "LEDGER_UNDER", "TO", "BY"]
 
 for col in TEXT_COLS:
     df_ui[col] = df_ui[col].astype(str).replace("nan", "").replace("0", "").replace("0.0","").replace("0.00","")
@@ -1330,7 +1330,7 @@ with st.form("approval_form"):
     edited_df = st.data_editor(
         st.session_state.edited_df.assign(
             COST_CENTER=st.session_state.edited_df["COST_CENTER"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
-            PARTICULAR=st.session_state.edited_df["PARTICULAR"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
+            LEDGER_NAME=st.session_state.edited_df["LEDGER_NAME"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
             LEDGER_UNDER=st.session_state.edited_df["LEDGER_UNDER"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
             TO=st.session_state.edited_df["TO"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
             BY=st.session_state.edited_df["BY"].astype(str).replace("0", "").replace("0.0","").replace("0.00","")
@@ -1340,7 +1340,7 @@ with st.form("approval_form"):
         disabled=[
             c for c in df_ui.columns
             if c not in ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
-                         "COST_CENTER", "PARTICULAR", "LEDGER_UNDER", "TO", "BY"]
+                         "COST_CENTER", "LEDGER_NAME", "LEDGER_UNDER", "TO", "BY"]
         ],
         column_config={
             "APPROVAL_1": st.column_config.SelectboxColumn(
@@ -1358,7 +1358,7 @@ with st.form("approval_form"):
                 format="%.2f"
             ),
             "COST_CENTER": st.column_config.TextColumn("COST_CENTER"),
-            "PARTICULAR": st.column_config.TextColumn("PARTICULAR"),
+            "LEDGER_NAME": st.column_config.TextColumn("LEDGER_NAME"),
             "LEDGER_UNDER": st.column_config.TextColumn("LEDGER_UNDER"),
             "TO": st.column_config.TextColumn("TO"),
             "BY": st.column_config.TextColumn("BY")
@@ -1397,7 +1397,7 @@ with st.form("approval_form"):
 if submit:
     try:
         # Fill empty/null text columns with "0" before saving
-        for col in ["COST_CENTER","PARTICULAR","LEDGER_UNDER","TO","BY"]:
+        for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
             edited_df[col] = edited_df[col].fillna("0").replace("", "0")
 
         # Ensure BASIC_AMOUNT is numeric
@@ -1407,7 +1407,7 @@ if submit:
         df.loc[df_ui.index, ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
                              "COST_CENTER","PARTICULAR","LEDGER_UNDER","TO","BY"]] = \
             edited_df[["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
-                       "COST_CENTER","PARTICULAR","LEDGER_UNDER","TO","BY"]].values
+                       "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]].values
 
         # Recalculate ADJUSTMENT_AMOUNT if ESTIMATION NOT MATCHED
         recalc_mask = (
