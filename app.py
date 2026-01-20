@@ -1326,62 +1326,46 @@ st.subheader("📂 Pending Approvals")
 #     submit = st.form_submit_button("💾 Save Bulk Approval")
 
 
-# with st.form("approval_form"):
-#     edited_df = st.data_editor(
-#         st.session_state.edited_df.assign(
-#             COST_CENTER=st.session_state.edited_df["COST_CENTER"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
-#             LEDGER_NAME=st.session_state.edited_df["LEDGER_NAME"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
-#             LEDGER_UNDER=st.session_state.edited_df["LEDGER_UNDER"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
-#             TO=st.session_state.edited_df["TO"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
-#             BY=st.session_state.edited_df["BY"].astype(str).replace("0", "").replace("0.0","").replace("0.00","")
-#         ),
-#         hide_index=True,
-#         use_container_width=True,
-#         disabled=[
-#             c for c in df_ui.columns
-#             if c not in ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
-#                          "COST_CENTER", "LEDGER_NAME", "LEDGER_UNDER", "TO", "BY"]
-#         ],
-#         column_config={
-#             "APPROVAL_1": st.column_config.SelectboxColumn(
-#                 "APPROVAL_1",
-#                 options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
-#             ),
-#             "APPROVAL_2": st.column_config.SelectboxColumn(
-#                 "APPROVAL_2",
-#                 options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
-#             ),
-#             "BASIC_AMOUNT": st.column_config.NumberColumn(
-#                 "BASIC_AMOUNT",
-#                 min_value=0,
-#                 step=1,
-#                 format="%.2f"
-#             ),
-#             "COST_CENTER": st.column_config.TextColumn("COST_CENTER"),
-#             "LEDGER_NAME": st.column_config.TextColumn("LEDGER_NAME"),
-#             "LEDGER_UNDER": st.column_config.TextColumn("LEDGER_UNDER"),
-#             "TO": st.column_config.TextColumn("TO"),
-#             "BY": st.column_config.TextColumn("BY")
-#         }
-#     )
-
-#     submit = st.form_submit_button("💾 Save Bulk Approval")
-
 with st.form("approval_form"):
     edited_df = st.data_editor(
-        st.session_state.edited_df,
+        st.session_state.edited_df.assign(
+            COST_CENTER=st.session_state.edited_df["COST_CENTER"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
+            LEDGER_NAME=st.session_state.edited_df["LEDGER_NAME"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
+            LEDGER_UNDER=st.session_state.edited_df["LEDGER_UNDER"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
+            TO=st.session_state.edited_df["TO"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
+            BY=st.session_state.edited_df["BY"].astype(str).replace("0", "").replace("0.0","").replace("0.00","")
+        ),
         hide_index=True,
         use_container_width=True,
+        disabled=[
+            c for c in df_ui.columns
+            if c not in ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
+                         "COST_CENTER", "LEDGER_NAME", "LEDGER_UNDER", "TO", "BY"]
+        ],
         column_config={
             "APPROVAL_1": st.column_config.SelectboxColumn(
-                "APPROVAL_1", options=["","ACCEPTED","REJECTED","PAID","HOLD"]
+                "APPROVAL_1",
+                options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
             ),
             "APPROVAL_2": st.column_config.SelectboxColumn(
-                "APPROVAL_2", options=["","ACCEPTED","REJECTED","PAID","HOLD"]
-            )
+                "APPROVAL_2",
+                options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
+            ),
+            "BASIC_AMOUNT": st.column_config.NumberColumn(
+                "BASIC_AMOUNT",
+                min_value=0,
+                step=1,
+                format="%.2f"
+            ),
+            "COST_CENTER": st.column_config.TextColumn("COST_CENTER"),
+            "LEDGER_NAME": st.column_config.TextColumn("LEDGER_NAME"),
+            "LEDGER_UNDER": st.column_config.TextColumn("LEDGER_UNDER"),
+            "TO": st.column_config.TextColumn("TO"),
+            "BY": st.column_config.TextColumn("BY")
         }
     )
-    submit = st.form_submit_button("Save")
+
+    submit = st.form_submit_button("💾 Save Bulk Approval")
 
 
 # ---------------------------------------------------
