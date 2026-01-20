@@ -1071,7 +1071,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System.</h1>", unsafe_allow_html=True)
 st.write("---")
 
 # ---------------------------------------------------
@@ -1374,23 +1374,24 @@ with st.form("approval_form"):
         use_container_width=True,
         disabled=[
             c for c in df_ui.columns
-            if c not in ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
-                         "COST_CENTER", "LEDGER_NAME", "LEDGER_UNDER", "TO", "BY"]
+            if c not in ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
+                         "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
         ],
         column_config={
             "APPROVAL_1": st.column_config.SelectboxColumn(
-                "APPROVAL_1",
-                options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
+                "APPROVAL_1", options=["","ACCEPTED","REJECTED","PAID","HOLD"]
             ),
             "APPROVAL_2": st.column_config.SelectboxColumn(
-                "APPROVAL_2",
-                options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
+                "APPROVAL_2", options=["","ACCEPTED","REJECTED","PAID","HOLD"]
             ),
+            "LEDGER_NAME": st.column_config.TextColumn("LEDGER_NAME"),
+            "COST_CENTER": st.column_config.TextColumn("COST_CENTER"),
+            "LEDGER_UNDER": st.column_config.TextColumn("LEDGER_UNDER"),
+            "TO": st.column_config.TextColumn("TO"),
+            "BY": st.column_config.TextColumn("BY"),
         }
     )
-
     submit = st.form_submit_button("💾 Save Bulk Approval")
-
     if submit:
         st.session_state.edited_df = edited_df.copy()
 
@@ -1455,30 +1456,45 @@ with st.form("approval_form"):
 
 if submit:
     try:
+        # Take latest edited data
         edited_df = st.session_state.edited_df.copy()
 
+        # Clean text columns before saving
         for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
-            edited_df[col] = edited_df[col].fillna("0").replace("", "0")
+            edited_df[col] = edited_df[col].astype(str).fillna("0").replace("", "0")
 
-        edited_df["BASIC_AMOUNT"] = pd.to_numeric(edited_df["BASIC_AMOUNT"], errors="coerce").fillna(0)
+        # Ensure BASIC_AMOUNT is numeric
+        edited_df["BASIC_AMOUNT"] = pd.to_numeric(
+            edited_df["BASIC_AMOUNT"], errors="coerce"
+        ).fillna(0)
 
-        # Map by position, not index
-        df.iloc[df_ui.index, df.columns.get_indexer([
-            "APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
-            "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"
-        ])] = edited_df[[
-            "APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
-            "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"
-        ]].values
+        # Push edited values back to main df using filtered index
+        df.loc[
+            df_ui.index,
+            ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
+             "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
+        ] = edited_df[
+            ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
+             "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
+        ].values
 
+        # Recalculate adjustment if needed
+        recalc_mask = (
+            (df["STATUS_MATCHED_ESTIMATION"].astype(str).str.upper() == "ESTIMATION NOT MATCHED") &
+            (df["ADJUSTMENT_AMOUNT"].fillna(0) == 0)
+        )
+        df.loc[recalc_mask, "ADJUSTMENT_AMOUNT"] = df.loc[recalc_mask, "BASIC_AMOUNT"]
+
+        # Sync to GitHub and Drive
         upload_excel_to_github(df)
         time.sleep(5)
         upload_excel_to_drive(df)
 
-        st.success("Saved — ACCEPTED is now reflected")
+        st.cache_data.clear()
+        st.success("✅ Changes saved successfully")
 
     except Exception as e:
-        st.error(f"Save failed: {e}")
+        st.error(f"❌ Save failed: {e}")
 
 
 # ---------------------------------------------------
