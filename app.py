@@ -1587,7 +1587,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System.</h1>", unsafe_allow_html=True)
 st.write("---")
 
 # ---------------------------------------------------
@@ -1701,29 +1701,70 @@ def upload_excel_to_github(df):
 # ---------------------------------------------------
 # INITIAL LOAD
 # ---------------------------------------------------
-if st.session_state.df is None:
+# if st.session_state.df is None:
+#     with st.spinner("🔄 Syncing Excel from Drive → GitHub..."):
+#         drive_df = download_excel_from_drive()
+#         upload_excel_to_github(drive_df)
+#         df = download_excel_from_github()
+
+#         for col in ["APPROVAL_1", "APPROVAL_2"]:
+#             if col not in df.columns:
+#                 df[col] = ""
+
+#         st.session_state.df = df.reset_index(drop=True)
+
+# df = st.session_state.df.copy()
+
+# # ---------------------------------------------------
+# # FILTER UI
+# # ---------------------------------------------------
+# df_ui = df[
+#     ~(
+#         (df["APPROVAL_1"].astype(str).str.upper() == "REJECTED") &
+#         (df["APPROVAL_2"].astype(str).str.upper() == "REJECTED")
+#     )
+# ].copy()
+
+# INITIAL LOAD
+if st.session_state.get("df") is None:
     with st.spinner("🔄 Syncing Excel from Drive → GitHub..."):
         drive_df = download_excel_from_drive()
         upload_excel_to_github(drive_df)
         df = download_excel_from_github()
 
+        # Add missing approval columns if not exist
         for col in ["APPROVAL_1", "APPROVAL_2"]:
             if col not in df.columns:
                 df[col] = ""
 
         st.session_state.df = df.reset_index(drop=True)
 
-df = st.session_state.df.copy()
+# Always work with session_state.df
+df = st.session_state.df
 
-# ---------------------------------------------------
-# FILTER UI
-# ---------------------------------------------------
-df_ui = df[
-    ~(
-        (df["APPROVAL_1"].astype(str).str.upper() == "REJECTED") &
-        (df["APPROVAL_2"].astype(str).str.upper() == "REJECTED")
-    )
-].copy()
+# -------------------------------
+# Filter for UI (pending approvals)
+# -------------------------------
+if st.session_state.get("edited_df") is None:
+    df_ui = df[
+        ~(
+            (df["APPROVAL_1"].astype(str).str.upper() == "REJECTED") &
+            (df["APPROVAL_2"].astype(str).str.upper() == "REJECTED")
+        )
+    ].copy()
+
+    # Force text columns
+    TEXT_COLS = ["COST_CENTER", "LEDGER_NAME", "LEDGER_UNDER", "TO", "BY"]
+    for col in TEXT_COLS:
+        df_ui[col] = df_ui[col].astype(str).replace("nan", "").replace("0", "").replace("0.0","").replace("0.00","")
+
+    st.session_state.edited_df = df_ui.copy()
+
+# Use the existing edited_df for UI
+df_ui = st.session_state.edited_df
+
+
+
 
 # ---------------------------------------------------
 # DISPLAY COLUMNS
