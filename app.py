@@ -2641,7 +2641,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,,</h1>", unsafe_allow_html=True)
 st.write("---")
 
 # ---------------------------------------------------
@@ -3080,24 +3080,60 @@ with st.form("approval_form"):
 #         st.error(f"❌ Save failed: {e}")
 
 
+# if submit:
+#     try:
+#         for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
+#             edited_df[col] = edited_df[col].fillna("0").replace("", "0")
+
+#         edited_df["BASIC_AMOUNT"] = pd.to_numeric(edited_df["BASIC_AMOUNT"], errors="coerce").fillna(0)
+
+#         df.loc[df_ui.index, ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
+#                              "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]] = \
+#             edited_df[["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
+#                        "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]].values
+
+#         recalc_mask = (
+#             (df["STATUS_MATCHED_ESTIMATION"].astype(str).str.upper() == "ESTIMATION NOT MATCHED") &
+#             (df["ADJUSTMENT_AMOUNT"].fillna(0) == 0)
+#         )
+#         df.loc[recalc_mask, "ADJUSTMENT_AMOUNT"] = df.loc[recalc_mask, "BASIC_AMOUNT"]
+
+#         upload_excel_to_github(df)
+#         time.sleep(5)
+#         upload_excel_to_drive(df)
+
+#         st.cache_data.clear()
+#         st.success("✅ Saved to GitHub and synced back to Google Drive")
+
+#     except Exception as e:
+#         st.error(f"❌ Save failed: {e}")
+
+
 if submit:
     try:
-        for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
-            edited_df[col] = edited_df[col].fillna("0").replace("", "0")
+        # Ensure BASIC_AMOUNT is numeric
+        edited_df["BASIC_AMOUNT"] = pd.to_numeric(
+            edited_df["BASIC_AMOUNT"], errors="coerce"
+        ).fillna(0)
 
-        edited_df["BASIC_AMOUNT"] = pd.to_numeric(edited_df["BASIC_AMOUNT"], errors="coerce").fillna(0)
-
+        # Update df with edited values FIRST (dropdown columns untouched before this)
         df.loc[df_ui.index, ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
                              "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]] = \
             edited_df[["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
                        "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]].values
 
+        # Now clean only non-dropdown text columns in df
+        for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
+            df[col] = df[col].fillna("0").replace("", "0")
+
+        # Recalculate ADJUSTMENT_AMOUNT if ESTIMATION NOT MATCHED
         recalc_mask = (
             (df["STATUS_MATCHED_ESTIMATION"].astype(str).str.upper() == "ESTIMATION NOT MATCHED") &
             (df["ADJUSTMENT_AMOUNT"].fillna(0) == 0)
         )
         df.loc[recalc_mask, "ADJUSTMENT_AMOUNT"] = df.loc[recalc_mask, "BASIC_AMOUNT"]
 
+        # Upload to GitHub and Drive
         upload_excel_to_github(df)
         time.sleep(5)
         upload_excel_to_drive(df)
