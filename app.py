@@ -2641,7 +2641,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,,</h1>", unsafe_allow_html=True)
 st.write("---")
 
 # ---------------------------------------------------
@@ -2945,6 +2945,14 @@ for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
 
 #     submit = st.form_submit_button("💾 Save Bulk Approval")
 
+# --- Never modify dropdown columns ---
+for col in ["APPROVAL_1", "APPROVAL_2"]:
+    if col not in st.session_state.edited_df.columns:
+        st.session_state.edited_df[col] = ""
+    else:
+        st.session_state.edited_df[col] = st.session_state.edited_df[col].astype(str).replace("nan","")
+
+
 with st.form("approval_form"):
     edited_df = st.data_editor(
         st.session_state.edited_df,
@@ -3144,54 +3152,86 @@ with st.form("approval_form"):
 #     except Exception as e:
 #         st.error(f"❌ Save failed: {e}")
 
+# if submit:
+#     try:
+#         # Align edited_df to df_ui index
+#         edited_df = edited_df.copy()
+#         edited_df.index = df_ui.index
+
+#         # Ensure BASIC_AMOUNT is numeric
+#         edited_df["BASIC_AMOUNT"] = pd.to_numeric(
+#             edited_df["BASIC_AMOUNT"], errors="coerce"
+#         ).fillna(0)
+
+#         # Write back to main df
+#         cols = ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
+#                 "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
+
+#         df.loc[df_ui.index, cols] = edited_df[cols].values
+
+#         # Clean only non-dropdown text columns in df
+#         for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
+#             df[col] = df[col].fillna("0").replace("", "0")
+
+#         # Recalculate ADJUSTMENT_AMOUNT
+#         recalc_mask = (
+#             (df["STATUS_MATCHED_ESTIMATION"].astype(str).str.upper() == "ESTIMATION NOT MATCHED") &
+#             (df["ADJUSTMENT_AMOUNT"].fillna(0) == 0)
+#         )
+#         df.loc[recalc_mask, "ADJUSTMENT_AMOUNT"] = df.loc[recalc_mask, "BASIC_AMOUNT"]
+
+#         upload_excel_to_github(df)
+#         time.sleep(5)
+#         upload_excel_to_drive(df)
+
+#         st.cache_data.clear()
+#         # ---- Refresh session state after save so dropdowns don't revert ----
+#         st.session_state.df = df.copy()
+
+#         df_ui_new = df[
+#          ~(
+#         (df["APPROVAL_1"].astype(str).str.upper() == "REJECTED") &
+#         (df["APPROVAL_2"].astype(str).str.upper() == "REJECTED")
+#          )
+#         ].copy()
+
+#         df_ui_new = df_ui_new[DISPLAY_COLUMNS]
+
+#         st.session_state.edited_df = df_ui_new.copy()
+
+#         st.success("✅ Saved to GitHub and synced back to Google Drive")
+
+#     except Exception as e:
+#         st.error(f"❌ Save failed: {e}")
+
 if submit:
     try:
-        # Align edited_df to df_ui index
         edited_df = edited_df.copy()
         edited_df.index = df_ui.index
 
-        # Ensure BASIC_AMOUNT is numeric
+        # numeric only
         edited_df["BASIC_AMOUNT"] = pd.to_numeric(
             edited_df["BASIC_AMOUNT"], errors="coerce"
         ).fillna(0)
 
-        # Write back to main df
-        cols = ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
+        cols = ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
                 "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
 
         df.loc[df_ui.index, cols] = edited_df[cols].values
 
-        # Clean only non-dropdown text columns in df
+        # clean only non-dropdown columns
         for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
             df[col] = df[col].fillna("0").replace("", "0")
-
-        # Recalculate ADJUSTMENT_AMOUNT
-        recalc_mask = (
-            (df["STATUS_MATCHED_ESTIMATION"].astype(str).str.upper() == "ESTIMATION NOT MATCHED") &
-            (df["ADJUSTMENT_AMOUNT"].fillna(0) == 0)
-        )
-        df.loc[recalc_mask, "ADJUSTMENT_AMOUNT"] = df.loc[recalc_mask, "BASIC_AMOUNT"]
 
         upload_excel_to_github(df)
         time.sleep(5)
         upload_excel_to_drive(df)
 
         st.cache_data.clear()
-        # ---- Refresh session state after save so dropdowns don't revert ----
         st.session_state.df = df.copy()
+        st.session_state.edited_df = df_ui.copy()
 
-        df_ui_new = df[
-         ~(
-        (df["APPROVAL_1"].astype(str).str.upper() == "REJECTED") &
-        (df["APPROVAL_2"].astype(str).str.upper() == "REJECTED")
-         )
-        ].copy()
-
-        df_ui_new = df_ui_new[DISPLAY_COLUMNS]
-
-        st.session_state.edited_df = df_ui_new.copy()
-
-        st.success("✅ Saved to GitHub and synced back to Google Drive")
+        st.success("✅ Dropdown now saves correctly")
 
     except Exception as e:
         st.error(f"❌ Save failed: {e}")
