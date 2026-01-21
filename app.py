@@ -2640,7 +2640,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System.</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,</h1>", unsafe_allow_html=True)
 st.write("---")
 
 # ---------------------------------------------------
@@ -2963,35 +2963,74 @@ with st.form("approval_form"):
 #     except Exception as e:
 #         st.error(f"❌ Save failed: {e}")
 
+# if submit:
+#     try:
+#         # Fill empty/null text columns with "0" before saving
+#         for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
+#             edited_df[col] = edited_df[col].fillna("0").replace("", "0")
+
+#         # Ensure BASIC_AMOUNT is numeric
+#         edited_df["BASIC_AMOUNT"] = pd.to_numeric(edited_df["BASIC_AMOUNT"], errors="coerce").fillna(0)
+
+#         # Update df with edited values
+#         df.loc[df_ui.index, ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
+#                              "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]] = \
+#             edited_df[["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
+#                        "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]].values
+
+#         # Recalculate ADJUSTMENT_AMOUNT if ESTIMATION NOT MATCHED
+#         recalc_mask = (
+#             (df["STATUS_MATCHED_ESTIMATION"].astype(str).str.upper() == "ESTIMATION NOT MATCHED") &
+#             (df["ADJUSTMENT_AMOUNT"].fillna(0) == 0)
+#         )
+#         df.loc[recalc_mask, "ADJUSTMENT_AMOUNT"] = df.loc[recalc_mask, "BASIC_AMOUNT"]
+
+#         # Upload to GitHub and Drive
+#         upload_excel_to_github(df)
+#         time.sleep(5)  # Give GitHub time to process
+#         upload_excel_to_drive(df)
+
+#         st.cache_data.clear()
+#         st.success("✅ Saved to GitHub and synced back to Google Drive")
+
+#     except Exception as e:
+#         st.error(f"❌ Save failed: {e}")
+
+
 if submit:
     try:
-        # Fill empty/null text columns with "0" before saving
         for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
             edited_df[col] = edited_df[col].fillna("0").replace("", "0")
 
-        # Ensure BASIC_AMOUNT is numeric
-        edited_df["BASIC_AMOUNT"] = pd.to_numeric(edited_df["BASIC_AMOUNT"], errors="coerce").fillna(0)
+        edited_df["BASIC_AMOUNT"] = pd.to_numeric(
+            edited_df["BASIC_AMOUNT"], errors="coerce"
+        ).fillna(0)
 
-        # Update df with edited values
-        df.loc[df_ui.index, ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
-                             "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]] = \
-            edited_df[["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
-                       "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]].values
+        # Get original row positions of df_ui
+        target_positions = list(df_ui.index)
 
-        # Recalculate ADJUSTMENT_AMOUNT if ESTIMATION NOT MATCHED
+        # Assign by POSITION not label
+        df.iloc[target_positions, df.columns.get_indexer([
+            "APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
+            "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"
+        ])] = edited_df[[
+            "APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
+            "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"
+        ]].values
+
+        # Recalculate ADJUSTMENT_AMOUNT
         recalc_mask = (
             (df["STATUS_MATCHED_ESTIMATION"].astype(str).str.upper() == "ESTIMATION NOT MATCHED") &
             (df["ADJUSTMENT_AMOUNT"].fillna(0) == 0)
         )
         df.loc[recalc_mask, "ADJUSTMENT_AMOUNT"] = df.loc[recalc_mask, "BASIC_AMOUNT"]
 
-        # Upload to GitHub and Drive
         upload_excel_to_github(df)
-        time.sleep(5)  # Give GitHub time to process
+        time.sleep(5)
         upload_excel_to_drive(df)
 
         st.cache_data.clear()
-        st.success("✅ Saved to GitHub and synced back to Google Drive")
+        st.success("✅ Dropdown now saves without ROW_ID")
 
     except Exception as e:
         st.error(f"❌ Save failed: {e}")
