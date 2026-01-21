@@ -1745,7 +1745,13 @@ df = st.session_state.df
 # -------------------------------
 # Filter for UI (pending approvals)
 # -------------------------------
+
+
+# -------------------------------
+# Prepare UI DataFrame (Pending Approvals)
+# -------------------------------
 if st.session_state.get("edited_df") is None:
+    # Filter out fully rejected rows
     df_ui = df[
         ~(
             (df["APPROVAL_1"].astype(str).str.upper() == "REJECTED") &
@@ -1753,16 +1759,31 @@ if st.session_state.get("edited_df") is None:
         )
     ].copy()
 
-    # Force text columns
+    # Keep only display columns
+    DISPLAY_COLUMNS = [
+        "STATUS_MATCHED_ESTIMATION", "GST %", "TDS %",
+        "GST (Yes/No)", "TDS (Yes/No)",
+        "BENEFICIARY PAN", "BENEFICIARY GSTIN",
+        "BENEFICIARY ACCOUNT NO", "FINAL AMOUNT",
+        "PROJECT_NAME", "CATEGORY",
+        "FIXED_AMOUNT", "BALANCE_AMOUNT",
+        "ADJUSTMENT_AMOUNT", "BASIC_AMOUNT",
+        "APPROVAL_1", "APPROVAL_2",
+        "BENEFICIARY NAME", "NARRATION",
+        "Remarks", "DATE","COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY" 
+    ]
+    df_ui = df_ui[DISPLAY_COLUMNS]
+
+    # Force text columns to strings
     TEXT_COLS = ["COST_CENTER", "LEDGER_NAME", "LEDGER_UNDER", "TO", "BY"]
     for col in TEXT_COLS:
         df_ui[col] = df_ui[col].astype(str).replace("nan", "").replace("0", "").replace("0.0","").replace("0.00","")
 
+    # Set session state
     st.session_state.edited_df = df_ui.copy()
 
 # Use the existing edited_df for UI
 df_ui = st.session_state.edited_df
-
 
 
 
