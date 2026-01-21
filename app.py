@@ -1071,8 +1071,17 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,,</h1>", unsafe_allow_html=True)
 st.write("---")
+
+# ---------------------------------------------------
+# SESSION STATE
+# # ---------------------------------------------------
+# if "df" not in st.session_state:
+#     st.session_state.df = None
+
+# if "edited_df" not in st.session_state:
+#     st.session_state.edited_df = None
 
 # ---------------------------------------------------
 # SESSION STATE
@@ -1081,7 +1090,8 @@ if "df" not in st.session_state:
     st.session_state.df = None
 
 if "edited_df" not in st.session_state:
-    st.session_state.edited_df = None
+    st.session_state.edited_df = df_ui.copy()
+
 
 # ---------------------------------------------------
 # LOAD SECRETS
