@@ -1071,7 +1071,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,,</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,</h1>", unsafe_allow_html=True)
 st.write("---")
 
 # ---------------------------------------------------
@@ -1184,8 +1184,20 @@ def upload_excel_to_github(df):
 
 # ---------------------------------------------------
 # INITIAL LOAD
-# ---------------------------------------------------
-if st.session_state.df is None:
+# # ---------------------------------------------------
+# if st.session_state.df is None:
+#     with st.spinner("🔄 Syncing Excel from Drive → GitHub..."):
+#         drive_df = download_excel_from_drive()
+#         upload_excel_to_github(drive_df)
+#         df = download_excel_from_github()
+
+#         for col in ["APPROVAL_1", "APPROVAL_2"]:
+#             if col not in df.columns:
+#                 df[col] = ""
+
+#         st.session_state.df = df.reset_index(drop=True)
+
+if "df" not in st.session_state or st.session_state.df is None:
     with st.spinner("🔄 Syncing Excel from Drive → GitHub..."):
         drive_df = download_excel_from_drive()
         upload_excel_to_github(drive_df)
@@ -1196,6 +1208,10 @@ if st.session_state.df is None:
                 df[col] = ""
 
         st.session_state.df = df.reset_index(drop=True)
+        st.session_state.edited_df = st.session_state.df.copy()
+else:
+    df = st.session_state.df.copy()
+
 
 df = st.session_state.df.copy()
 
