@@ -2945,41 +2945,6 @@ for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
 
 #     submit = st.form_submit_button("💾 Save Bulk Approval")
 
-# with st.form("approval_form"):
-#     edited_df = st.data_editor(
-#         st.session_state.edited_df,
-#         hide_index=True,
-#         use_container_width=True,
-#         disabled=[
-#             c for c in df_ui.columns
-#             if c not in ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
-#                          "COST_CENTER", "LEDGER_NAME", "LEDGER_UNDER", "TO", "BY"]
-#         ],
-#         column_config={
-#             "APPROVAL_1": st.column_config.SelectboxColumn(
-#                 "APPROVAL_1",
-#                 options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
-#             ),
-#             "APPROVAL_2": st.column_config.SelectboxColumn(
-#                 "APPROVAL_2",
-#                 options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
-#             ),
-#             "BASIC_AMOUNT": st.column_config.NumberColumn(
-#                 "BASIC_AMOUNT",
-#                 min_value=0,
-#                 step=1,
-#                 format="%.2f"
-#             ),
-#             "COST_CENTER": st.column_config.TextColumn("COST_CENTER"),
-#             "LEDGER_NAME": st.column_config.TextColumn("LEDGER_NAME"),
-#             "LEDGER_UNDER": st.column_config.TextColumn("LEDGER_UNDER"),
-#             "TO": st.column_config.TextColumn("TO"),
-#             "BY": st.column_config.TextColumn("BY")
-#         }
-#     )
-
-#     submit = st.form_submit_button("💾 Save Bulk Approval")
-
 with st.form("approval_form"):
     edited_df = st.data_editor(
         st.session_state.edited_df,
@@ -3000,7 +2965,10 @@ with st.form("approval_form"):
                 options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
             ),
             "BASIC_AMOUNT": st.column_config.NumberColumn(
-                "BASIC_AMOUNT", min_value=0, step=1, format="%.2f"
+                "BASIC_AMOUNT",
+                min_value=0,
+                step=1,
+                format="%.2f"
             ),
             "COST_CENTER": st.column_config.TextColumn("COST_CENTER"),
             "LEDGER_NAME": st.column_config.TextColumn("LEDGER_NAME"),
@@ -3010,10 +2978,8 @@ with st.form("approval_form"):
         }
     )
 
-    # -- CRITICAL LINE
-    st.session_state.edited_df = edited_df.copy()
-
     submit = st.form_submit_button("💾 Save Bulk Approval")
+
 
 
 # ---------------------------------------------------
