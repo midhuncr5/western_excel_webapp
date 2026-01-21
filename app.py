@@ -1906,15 +1906,55 @@ st.subheader("📂 Pending Approvals")
 #     submit = st.form_submit_button("💾 Save Bulk Approval")
 
 
+# with st.form("approval_form"):
+#     edited_df = st.data_editor(
+#         st.session_state.edited_df.assign(
+#             COST_CENTER=st.session_state.edited_df["COST_CENTER"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
+#             LEDGER_NAME=st.session_state.edited_df["LEDGER_NAME"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
+#             LEDGER_UNDER=st.session_state.edited_df["LEDGER_UNDER"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
+#             TO=st.session_state.edited_df["TO"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
+#             BY=st.session_state.edited_df["BY"].astype(str).replace("0", "").replace("0.0","").replace("0.00","")
+#         ),
+#         hide_index=True,
+#         use_container_width=True,
+#         disabled=[
+#             c for c in df_ui.columns
+#             if c not in ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
+#                          "COST_CENTER", "LEDGER_NAME", "LEDGER_UNDER", "TO", "BY"]
+#         ],
+#         column_config={
+#             "APPROVAL_1": st.column_config.SelectboxColumn(
+#                 "APPROVAL_1",
+#                 options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
+#             ),
+#             "APPROVAL_2": st.column_config.SelectboxColumn(
+#                 "APPROVAL_2",
+#                 options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
+#             ),
+#             "BASIC_AMOUNT": st.column_config.NumberColumn(
+#                 "BASIC_AMOUNT",
+#                 min_value=0,
+#                 step=1,
+#                 format="%.2f"
+#             ),
+#             "COST_CENTER": st.column_config.TextColumn("COST_CENTER"),
+#             "LEDGER_NAME": st.column_config.TextColumn("LEDGER_NAME"),
+#             "LEDGER_UNDER": st.column_config.TextColumn("LEDGER_UNDER"),
+#             "TO": st.column_config.TextColumn("TO"),
+#             "BY": st.column_config.TextColumn("BY")
+#         }
+#     )
+#     st.session_state.edited_df = edited_df.copy()
+
+
+#     submit = st.form_submit_button("💾 Save Bulk Approval")
+
+
 with st.form("approval_form"):
+    # Use session_state.edited_df directly
     edited_df = st.data_editor(
-        st.session_state.edited_df.assign(
-            COST_CENTER=st.session_state.edited_df["COST_CENTER"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
-            LEDGER_NAME=st.session_state.edited_df["LEDGER_NAME"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
-            LEDGER_UNDER=st.session_state.edited_df["LEDGER_UNDER"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
-            TO=st.session_state.edited_df["TO"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
-            BY=st.session_state.edited_df["BY"].astype(str).replace("0", "").replace("0.0","").replace("0.00","")
-        ),
+        st.session_state.edited_df,
+        key="approval_editor",
         hide_index=True,
         use_container_width=True,
         disabled=[
@@ -1944,8 +1984,6 @@ with st.form("approval_form"):
             "BY": st.column_config.TextColumn("BY")
         }
     )
-    st.session_state.edited_df = edited_df.copy()
-
 
     submit = st.form_submit_button("💾 Save Bulk Approval")
 
@@ -2052,50 +2090,93 @@ with st.form("approval_form"):
 
 
 
+# if submit:
+#     try:
+#         edited_df = st.session_state.edited_df.copy()
+
+#         # Clean text columns
+#         for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
+#             edited_df[col] = edited_df[col].astype(str).fillna("0").replace("", "0")
+
+#         edited_df["BASIC_AMOUNT"] = pd.to_numeric(
+#             edited_df["BASIC_AMOUNT"], errors="coerce"
+#         ).fillna(0)
+
+#         # Clean df approval columns
+#         df["APPROVAL_1"] = df["APPROVAL_1"].astype(str).replace("nan","")
+#         df["APPROVAL_2"] = df["APPROVAL_2"].astype(str).replace("nan","")
+
+#         # Update df with edited values
+#         df.loc[
+#             df_ui.index,
+#             ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
+#              "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
+#         ] = edited_df[
+#             ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
+#              "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
+#         ].values
+
+#         # Recalculate ADJUSTMENT_AMOUNT if needed
+#         recalc_mask = (
+#             (df["STATUS_MATCHED_ESTIMATION"].astype(str).str.upper() == "ESTIMATION NOT MATCHED") &
+#             (df["ADJUSTMENT_AMOUNT"].fillna(0) == 0)
+#         )
+#         df.loc[recalc_mask, "ADJUSTMENT_AMOUNT"] = df.loc[recalc_mask, "BASIC_AMOUNT"]
+
+#         # Upload changes
+#         upload_excel_to_github(df)
+#         time.sleep(5)
+#         upload_excel_to_drive(df)
+
+#         # ✅ Update session_state so rerun preserves edits
+#         st.session_state.df = df.copy()
+#         st.session_state.edited_df = edited_df.copy()
+
+#         st.cache_data.clear()
+#         st.success("✅ Changes saved successfully")
+
+#     except Exception as e:
+#         st.error(f"❌ Save failed: {e}")
+
+
 if submit:
     try:
-        edited_df = st.session_state.edited_df.copy()
+        # Save edited_df to session_state first (prevents losing edits)
+        st.session_state.edited_df = edited_df.copy()
 
-        # Clean text columns
+        # Clean numeric/text columns
         for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
-            edited_df[col] = edited_df[col].astype(str).fillna("0").replace("", "0")
+            st.session_state.edited_df[col] = st.session_state.edited_df[col].astype(str).fillna("0").replace("", "0")
 
-        edited_df["BASIC_AMOUNT"] = pd.to_numeric(
-            edited_df["BASIC_AMOUNT"], errors="coerce"
+        st.session_state.edited_df["BASIC_AMOUNT"] = pd.to_numeric(
+            st.session_state.edited_df["BASIC_AMOUNT"], errors="coerce"
         ).fillna(0)
 
-        # Clean df approval columns
-        df["APPROVAL_1"] = df["APPROVAL_1"].astype(str).replace("nan","")
-        df["APPROVAL_2"] = df["APPROVAL_2"].astype(str).replace("nan","")
+        # Update main df
+        df.loc[df_ui.index, ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
+                             "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]] = \
+            st.session_state.edited_df[
+                ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
+                 "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
+            ].values
 
-        # Update df with edited values
-        df.loc[
-            df_ui.index,
-            ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
-             "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
-        ] = edited_df[
-            ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
-             "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
-        ].values
-
-        # Recalculate ADJUSTMENT_AMOUNT if needed
+        # Recalculate adjustment if needed
         recalc_mask = (
             (df["STATUS_MATCHED_ESTIMATION"].astype(str).str.upper() == "ESTIMATION NOT MATCHED") &
             (df["ADJUSTMENT_AMOUNT"].fillna(0) == 0)
         )
         df.loc[recalc_mask, "ADJUSTMENT_AMOUNT"] = df.loc[recalc_mask, "BASIC_AMOUNT"]
 
-        # Upload changes
+        # Upload
         upload_excel_to_github(df)
         time.sleep(5)
         upload_excel_to_drive(df)
 
-        # ✅ Update session_state so rerun preserves edits
+        # ✅ Update session_state
         st.session_state.df = df.copy()
-        st.session_state.edited_df = edited_df.copy()
 
         st.cache_data.clear()
-        st.success("✅ Changes saved successfully")
+        st.success("✅ Changes saved successfully (No rerun reset!)")
 
     except Exception as e:
         st.error(f"❌ Save failed: {e}")
