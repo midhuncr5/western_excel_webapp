@@ -1564,6 +1564,651 @@
 
 
 
+# import io
+# import json
+# import base64
+# import time
+# import pandas as pd
+# import streamlit as st
+# import requests
+# import altair as alt
+
+# from google.oauth2.service_account import Credentials
+# from googleapiclient.discovery import build
+# from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
+
+# # ---------------------------------------------------
+# # PAGE CONFIG
+# # ---------------------------------------------------
+# st.set_page_config(
+#     page_title="GitHub Excel Approval System",
+#     page_icon="📝",
+#     layout="wide",
+#     initial_sidebar_state="expanded"
+# )
+
+# st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System.</h1>", unsafe_allow_html=True)
+# st.write("---")
+
+# # ---------------------------------------------------
+# # SESSION STATE
+# # ---------------------------------------------------
+# if "df" not in st.session_state:
+#     st.session_state.df = None
+
+# if "edited_df" not in st.session_state:
+#     st.session_state.edited_df = None
+
+# # ---------------------------------------------------
+# # LOAD SECRETS
+# # ---------------------------------------------------
+# required_secrets = [
+#     "GITHUB_TOKEN",
+#     "GITHUB_REPO",
+#     "GITHUB_FILE_PATH",
+#     "FILE_ID",
+#     "SERVICE_ACCOUNT_JSON"
+# ]
+
+# for key in required_secrets:
+#     if key not in st.secrets:
+#         st.error(f"Missing secret: {key}")
+#         st.stop()
+
+# GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
+# GITHUB_REPO = st.secrets["GITHUB_REPO"]
+# GITHUB_FILE_PATH = st.secrets["GITHUB_FILE_PATH"]
+# FILE_ID = st.secrets["FILE_ID"]
+# SERVICE_ACCOUNT_JSON = st.secrets["SERVICE_ACCOUNT_JSON"]
+
+# HEADERS = {"Authorization": f"token {GITHUB_TOKEN}"}
+
+# # ---------------------------------------------------
+# # GOOGLE DRIVE FUNCTIONS
+# # ---------------------------------------------------
+# def get_drive_service():
+#     creds = Credentials.from_service_account_info(
+#         json.loads(SERVICE_ACCOUNT_JSON),
+#         scopes=["https://www.googleapis.com/auth/drive"]
+#     )
+#     return build("drive", "v3", credentials=creds)
+
+# def download_excel_from_drive():
+#     service = get_drive_service()
+#     request = service.files().get_media(fileId=FILE_ID)
+
+#     fh = io.BytesIO()
+#     downloader = MediaIoBaseDownload(fh, request)
+
+#     done = False
+#     while not done:
+#         _, done = downloader.next_chunk()
+
+#     fh.seek(0)
+#     return pd.read_excel(fh, engine="openpyxl")
+
+# def upload_excel_to_drive(df):
+#     service = get_drive_service()
+
+#     out = io.BytesIO()
+#     df.to_excel(out, index=False, engine="openpyxl")
+#     out.seek(0)
+
+#     media = MediaIoBaseUpload(
+#         out,
+#         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+#         resumable=True
+#     )
+
+#     service.files().update(
+#         fileId=FILE_ID,
+#         media_body=media
+#     ).execute()
+
+# # ---------------------------------------------------
+# # GITHUB FUNCTIONS
+# # ---------------------------------------------------
+# @st.cache_data(ttl=300)
+# def download_excel_from_github():
+#     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
+#     r = requests.get(url, headers=HEADERS)
+#     r.raise_for_status()
+
+#     content = r.json()["content"]
+#     file_bytes = base64.b64decode(content)
+
+#     return pd.read_excel(io.BytesIO(file_bytes), engine="openpyxl")
+
+# def upload_excel_to_github(df):
+#     out = io.BytesIO()
+#     df.to_excel(out, index=False, engine="openpyxl")
+#     out.seek(0)
+
+#     content_b64 = base64.b64encode(out.read()).decode()
+
+#     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
+#     sha = requests.get(url, headers=HEADERS).json()["sha"]
+
+#     payload = {
+#         "message": "Updated via Streamlit Approval System",
+#         "content": content_b64,
+#         "sha": sha
+#     }
+
+#     r = requests.put(url, headers=HEADERS, data=json.dumps(payload))
+#     r.raise_for_status()
+
+# # ---------------------------------------------------
+# # INITIAL LOAD
+# # ---------------------------------------------------
+# # if st.session_state.df is None:
+# #     with st.spinner("🔄 Syncing Excel from Drive → GitHub..."):
+# #         drive_df = download_excel_from_drive()
+# #         upload_excel_to_github(drive_df)
+# #         df = download_excel_from_github()
+
+# #         for col in ["APPROVAL_1", "APPROVAL_2"]:
+# #             if col not in df.columns:
+# #                 df[col] = ""
+
+# #         st.session_state.df = df.reset_index(drop=True)
+
+# # df = st.session_state.df.copy()
+
+# # # ---------------------------------------------------
+# # # FILTER UI
+# # # ---------------------------------------------------
+# # df_ui = df[
+# #     ~(
+# #         (df["APPROVAL_1"].astype(str).str.upper() == "REJECTED") &
+# #         (df["APPROVAL_2"].astype(str).str.upper() == "REJECTED")
+# #     )
+# # ].copy()
+
+# # INITIAL LOAD
+# if st.session_state.get("df") is None:
+#     with st.spinner("🔄 Syncing Excel from Drive → GitHub..."):
+#         drive_df = download_excel_from_drive()
+#         upload_excel_to_github(drive_df)
+#         df = download_excel_from_github()
+
+#         # Add missing approval columns if not exist
+#         for col in ["APPROVAL_1", "APPROVAL_2"]:
+#             if col not in df.columns:
+#                 df[col] = ""
+
+#         st.session_state.df = df.reset_index(drop=True)
+
+# # Always work with session_state.df
+# df = st.session_state.df
+
+# # -------------------------------
+# # Filter for UI (pending approvals)
+# # -------------------------------
+
+
+# # -------------------------------
+# # Prepare UI DataFrame (Pending Approvals)
+# # -------------------------------
+# if st.session_state.get("edited_df") is None:
+#     # Filter out fully rejected rows
+#     df_ui = df[
+#         ~(
+#             (df["APPROVAL_1"].astype(str).str.upper() == "REJECTED") &
+#             (df["APPROVAL_2"].astype(str).str.upper() == "REJECTED")
+#         )
+#     ].copy()
+
+#     # Keep only display columns
+#     DISPLAY_COLUMNS = [
+#         "STATUS_MATCHED_ESTIMATION", "GST %", "TDS %",
+#         "GST (Yes/No)", "TDS (Yes/No)",
+#         "BENEFICIARY PAN", "BENEFICIARY GSTIN",
+#         "BENEFICIARY ACCOUNT NO", "FINAL AMOUNT",
+#         "PROJECT_NAME", "CATEGORY",
+#         "FIXED_AMOUNT", "BALANCE_AMOUNT",
+#         "ADJUSTMENT_AMOUNT", "BASIC_AMOUNT",
+#         "APPROVAL_1", "APPROVAL_2",
+#         "BENEFICIARY NAME", "NARRATION",
+#         "Remarks", "DATE","COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY" 
+#     ]
+#     df_ui = df_ui[DISPLAY_COLUMNS]
+
+#     # Force text columns to strings
+#     TEXT_COLS = ["COST_CENTER", "LEDGER_NAME", "LEDGER_UNDER", "TO", "BY"]
+#     for col in TEXT_COLS:
+#         df_ui[col] = df_ui[col].astype(str).replace("nan", "").replace("0", "").replace("0.0","").replace("0.00","")
+
+#     # Set session state
+#     st.session_state.edited_df = df_ui.copy()
+
+# # Use the existing edited_df for UI
+# df_ui = st.session_state.edited_df
+
+
+
+# # ---------------------------------------------------
+# # DISPLAY COLUMNS
+# # ---------------------------------------------------
+# DISPLAY_COLUMNS = [
+#     "STATUS_MATCHED_ESTIMATION", "GST %", "TDS %",
+#     "GST (Yes/No)", "TDS (Yes/No)",
+#     "BENEFICIARY PAN", "BENEFICIARY GSTIN",
+#     "BENEFICIARY ACCOUNT NO", "FINAL AMOUNT",
+#     "PROJECT_NAME", "CATEGORY",
+#     "FIXED_AMOUNT", "BALANCE_AMOUNT",
+#     "ADJUSTMENT_AMOUNT", "BASIC_AMOUNT",
+#     "APPROVAL_1", "APPROVAL_2",
+#     "BENEFICIARY NAME", "NARRATION",
+#     "Remarks", "DATE","COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY" 
+# ]
+
+# df_ui = df_ui[DISPLAY_COLUMNS]
+
+# # ---- FORCE TEXT COLUMNS AS STRING (CRITICAL FIX) ----
+# TEXT_COLS = ["COST_CENTER", "LEDGER_NAME", "LEDGER_UNDER", "TO", "BY"]
+
+# for col in TEXT_COLS:
+#     df_ui[col] = df_ui[col].astype(str).replace("nan", "").replace("0", "").replace("0.0","").replace("0.00","")
+
+
+# # ---------------------------------------------------
+# # AUTO ADJUSTMENT LOGIC
+# # ---------------------------------------------------
+# df_ui["BASIC_AMOUNT"] = pd.to_numeric(df_ui["BASIC_AMOUNT"], errors="coerce").fillna(0)
+# df_ui["ADJUSTMENT_AMOUNT"] = pd.to_numeric(df_ui["ADJUSTMENT_AMOUNT"], errors="coerce").fillna(0)
+
+# mask = (
+#     (df_ui["STATUS_MATCHED_ESTIMATION"].fillna("").str.upper() == "ESTIMATION NOT MATCHED") &
+#     (df_ui["BASIC_AMOUNT"] != 0) &
+#     (df_ui["ADJUSTMENT_AMOUNT"] == 0)
+# )
+
+# df_ui.loc[mask, "ADJUSTMENT_AMOUNT"] = df_ui.loc[mask, "BASIC_AMOUNT"]
+
+
+
+# # if st.session_state.edited_df is None:
+# #     st.session_state.edited_df = df_ui.copy()
+
+# if "edited_df" not in st.session_state or st.session_state.edited_df is None:
+#     st.session_state.edited_df = df_ui.copy()
+
+
+
+# # ---------------------------------------------------
+# # EDITOR
+# # ---------------------------------------------------
+# st.subheader("📂 Pending Approvals")
+
+# # with st.form("approval_form"):
+# #     edited_df = st.data_editor(
+# #         st.session_state.edited_df,
+# #         hide_index=True,
+# #         use_container_width=True,
+# #         disabled=[
+# #             c for c in df_ui.columns
+# #             if c not in ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT"]
+# #         ],
+# #         column_config={
+# #             "APPROVAL_1": st.column_config.SelectboxColumn(
+# #                 "APPROVAL_1",
+# #                 options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
+# #             ),
+# #             "APPROVAL_2": st.column_config.SelectboxColumn(
+# #                 "APPROVAL_2",
+# #                 options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
+# #             ),
+# #             "BASIC_AMOUNT": st.column_config.NumberColumn(
+# #                 "BASIC_AMOUNT",
+# #                 min_value=0,
+# #                 step=1,
+# #                 format="%.2f"
+# #             )
+# #         }
+# #     )
+
+# #     submit = st.form_submit_button("💾 Save Bulk Approval")
+
+# # with st.form("approval_form"):
+# #     edited_df = st.data_editor(
+# #         st.session_state.edited_df,
+# #         hide_index=True,
+# #         use_container_width=True,
+# #         disabled=[
+# #             c for c in df_ui.columns
+# #             if c not in ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT", "COST_CENTER", "PARTICULAR", "LEDGER_UNDER", "TO", "BY"]
+# #         ],
+# #         column_config={
+# #             "APPROVAL_1": st.column_config.SelectboxColumn(
+# #                 "APPROVAL_1",
+# #                 options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
+# #             ),
+# #             "APPROVAL_2": st.column_config.SelectboxColumn(
+# #                 "APPROVAL_2",
+# #                 options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
+# #             ),
+# #             "BASIC_AMOUNT": st.column_config.NumberColumn(
+# #                 "BASIC_AMOUNT",
+# #                 min_value=0,
+# #                 step=1,
+# #                 format="%.2f"
+# #             ),
+# #             # Make these text columns editable
+# #             "COST_CENTER": st.column_config.TextColumn("COST_CENTER"),
+# #             "PARTICULAR": st.column_config.TextColumn("PARTICULAR"),
+# #             "LEDGER_UNDER": st.column_config.TextColumn("LEDGER_UNDER"),
+# #             "TO": st.column_config.TextColumn("TO"),
+# #             "BY": st.column_config.TextColumn("BY")
+# #         }
+# #     )
+
+# #     submit = st.form_submit_button("💾 Save Bulk Approval")
+
+
+# # with st.form("approval_form"):
+# #     edited_df = st.data_editor(
+# #         st.session_state.edited_df.assign(
+# #             COST_CENTER=st.session_state.edited_df["COST_CENTER"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
+# #             LEDGER_NAME=st.session_state.edited_df["LEDGER_NAME"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
+# #             LEDGER_UNDER=st.session_state.edited_df["LEDGER_UNDER"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
+# #             TO=st.session_state.edited_df["TO"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
+# #             BY=st.session_state.edited_df["BY"].astype(str).replace("0", "").replace("0.0","").replace("0.00","")
+# #         ),
+# #         hide_index=True,
+# #         use_container_width=True,
+# #         disabled=[
+# #             c for c in df_ui.columns
+# #             if c not in ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
+# #                          "COST_CENTER", "LEDGER_NAME", "LEDGER_UNDER", "TO", "BY"]
+# #         ],
+# #         column_config={
+# #             "APPROVAL_1": st.column_config.SelectboxColumn(
+# #                 "APPROVAL_1",
+# #                 options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
+# #             ),
+# #             "APPROVAL_2": st.column_config.SelectboxColumn(
+# #                 "APPROVAL_2",
+# #                 options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
+# #             ),
+# #             "BASIC_AMOUNT": st.column_config.NumberColumn(
+# #                 "BASIC_AMOUNT",
+# #                 min_value=0,
+# #                 step=1,
+# #                 format="%.2f"
+# #             ),
+# #             "COST_CENTER": st.column_config.TextColumn("COST_CENTER"),
+# #             "LEDGER_NAME": st.column_config.TextColumn("LEDGER_NAME"),
+# #             "LEDGER_UNDER": st.column_config.TextColumn("LEDGER_UNDER"),
+# #             "TO": st.column_config.TextColumn("TO"),
+# #             "BY": st.column_config.TextColumn("BY")
+# #         }
+# #     )
+# #     st.session_state.edited_df = edited_df.copy()
+
+
+# #     submit = st.form_submit_button("💾 Save Bulk Approval")
+
+
+# with st.form("approval_form"):
+#     # Use session_state.edited_df directly
+#     edited_df = st.data_editor(
+#         st.session_state.edited_df,
+#         key="approval_editor",
+#         hide_index=True,
+#         use_container_width=True,
+#         disabled=[
+#             c for c in df_ui.columns
+#             if c not in ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
+#                          "COST_CENTER", "LEDGER_NAME", "LEDGER_UNDER", "TO", "BY"]
+#         ],
+#         column_config={
+#             "APPROVAL_1": st.column_config.SelectboxColumn(
+#                 "APPROVAL_1",
+#                 options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
+#             ),
+#             "APPROVAL_2": st.column_config.SelectboxColumn(
+#                 "APPROVAL_2",
+#                 options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
+#             ),
+#             "BASIC_AMOUNT": st.column_config.NumberColumn(
+#                 "BASIC_AMOUNT",
+#                 min_value=0,
+#                 step=1,
+#                 format="%.2f"
+#             ),
+#             "COST_CENTER": st.column_config.TextColumn("COST_CENTER"),
+#             "LEDGER_NAME": st.column_config.TextColumn("LEDGER_NAME"),
+#             "LEDGER_UNDER": st.column_config.TextColumn("LEDGER_UNDER"),
+#             "TO": st.column_config.TextColumn("TO"),
+#             "BY": st.column_config.TextColumn("BY")
+#         }
+#     )
+
+#     submit = st.form_submit_button("💾 Save Bulk Approval")
+
+
+# # ---------------------------------------------------
+# # SAVE
+# # ---------------------------------------------------
+# # if submit:
+# #     try:
+# #         df.loc[df_ui.index, ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT"]] = \
+# #             edited_df[["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT"]].values
+
+# #         recalc_mask = (
+# #             (df["STATUS_MATCHED_ESTIMATION"].astype(str).str.upper() == "ESTIMATION NOT MATCHED") &
+# #             (df["ADJUSTMENT_AMOUNT"].fillna(0) == 0)
+# #         )
+
+# #         df.loc[recalc_mask, "ADJUSTMENT_AMOUNT"] = df.loc[recalc_mask, "BASIC_AMOUNT"]
+
+# #         upload_excel_to_github(df)
+# #         time.sleep(5)
+# #         upload_excel_to_drive(df)
+
+# #         st.cache_data.clear()
+# #         st.success("✅ Saved to GitHub and synced back to Google Drive")
+
+# #     except Exception as e:
+# #         st.error(f"❌ Save failed: {e}")
+
+# # if submit:
+# #     try:
+# #         # Fill empty/null text columns with "0" before saving
+# #         for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
+# #             edited_df[col] = edited_df[col].fillna("0").replace("", "0")
+
+# #         # Ensure BASIC_AMOUNT is numeric
+# #         edited_df["BASIC_AMOUNT"] = pd.to_numeric(edited_df["BASIC_AMOUNT"], errors="coerce").fillna(0)
+
+# #         # Update df with edited values
+# #         df.loc[df_ui.index, ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
+# #                              "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]] = \
+# #             edited_df[["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
+# #                        "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]].values
+
+# #         # Recalculate ADJUSTMENT_AMOUNT if ESTIMATION NOT MATCHED
+# #         recalc_mask = (
+# #             (df["STATUS_MATCHED_ESTIMATION"].astype(str).str.upper() == "ESTIMATION NOT MATCHED") &
+# #             (df["ADJUSTMENT_AMOUNT"].fillna(0) == 0)
+# #         )
+# #         df.loc[recalc_mask, "ADJUSTMENT_AMOUNT"] = df.loc[recalc_mask, "BASIC_AMOUNT"]
+
+# #         # Upload to GitHub and Drive
+# #         upload_excel_to_github(df)
+# #         time.sleep(5)  # Give GitHub time to process
+# #         upload_excel_to_drive(df)
+
+# #         st.cache_data.clear()
+# #         st.success("✅ Saved to GitHub and synced back to Google Drive")
+
+# #     except Exception as e:
+# #         st.error(f"❌ Save failed: {e}")
+
+# # if submit:
+# #     try:
+# #         edited_df = st.session_state.edited_df.copy()
+
+# #         # Clean text columns
+# #         for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
+# #             edited_df[col] = edited_df[col].astype(str).fillna("0").replace("", "0")
+
+# #         edited_df["BASIC_AMOUNT"] = pd.to_numeric(
+# #             edited_df["BASIC_AMOUNT"], errors="coerce"
+# #         ).fillna(0)
+
+# #         # 🔧 CRITICAL FIX
+# #         df["APPROVAL_1"] = df["APPROVAL_1"].astype(str).replace("nan","")
+# #         df["APPROVAL_2"] = df["APPROVAL_2"].astype(str).replace("nan","")
+
+# #         # Push edited values
+# #         df.loc[
+# #             df_ui.index,
+# #             ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
+# #              "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
+# #         ] = edited_df[
+# #             ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
+# #              "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
+# #         ].values
+
+# #         recalc_mask = (
+# #             (df["STATUS_MATCHED_ESTIMATION"].astype(str).str.upper() == "ESTIMATION NOT MATCHED") &
+# #             (df["ADJUSTMENT_AMOUNT"].fillna(0) == 0)
+# #         )
+# #         df.loc[recalc_mask, "ADJUSTMENT_AMOUNT"] = df.loc[recalc_mask, "BASIC_AMOUNT"]
+
+# #         upload_excel_to_github(df)
+# #         time.sleep(5)
+# #         upload_excel_to_drive(df)
+
+# #         st.cache_data.clear()
+# #         st.success("✅ Changes saved successfully")
+
+# #     except Exception as e:
+# #         st.error(f"❌ Save failed: {e}")
+
+
+
+# # if submit:
+# #     try:
+# #         edited_df = st.session_state.edited_df.copy()
+
+# #         # Clean text columns
+# #         for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
+# #             edited_df[col] = edited_df[col].astype(str).fillna("0").replace("", "0")
+
+# #         edited_df["BASIC_AMOUNT"] = pd.to_numeric(
+# #             edited_df["BASIC_AMOUNT"], errors="coerce"
+# #         ).fillna(0)
+
+# #         # Clean df approval columns
+# #         df["APPROVAL_1"] = df["APPROVAL_1"].astype(str).replace("nan","")
+# #         df["APPROVAL_2"] = df["APPROVAL_2"].astype(str).replace("nan","")
+
+# #         # Update df with edited values
+# #         df.loc[
+# #             df_ui.index,
+# #             ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
+# #              "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
+# #         ] = edited_df[
+# #             ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
+# #              "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
+# #         ].values
+
+# #         # Recalculate ADJUSTMENT_AMOUNT if needed
+# #         recalc_mask = (
+# #             (df["STATUS_MATCHED_ESTIMATION"].astype(str).str.upper() == "ESTIMATION NOT MATCHED") &
+# #             (df["ADJUSTMENT_AMOUNT"].fillna(0) == 0)
+# #         )
+# #         df.loc[recalc_mask, "ADJUSTMENT_AMOUNT"] = df.loc[recalc_mask, "BASIC_AMOUNT"]
+
+# #         # Upload changes
+# #         upload_excel_to_github(df)
+# #         time.sleep(5)
+# #         upload_excel_to_drive(df)
+
+# #         # ✅ Update session_state so rerun preserves edits
+# #         st.session_state.df = df.copy()
+# #         st.session_state.edited_df = edited_df.copy()
+
+# #         st.cache_data.clear()
+# #         st.success("✅ Changes saved successfully")
+
+# #     except Exception as e:
+# #         st.error(f"❌ Save failed: {e}")
+
+
+# if submit:
+#     try:
+#         # Save edited_df to session_state first (prevents losing edits)
+#         st.session_state.edited_df = edited_df.copy()
+
+#         # Clean numeric/text columns
+#         for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
+#             st.session_state.edited_df[col] = st.session_state.edited_df[col].astype(str).fillna("0").replace("", "0")
+
+#         st.session_state.edited_df["BASIC_AMOUNT"] = pd.to_numeric(
+#             st.session_state.edited_df["BASIC_AMOUNT"], errors="coerce"
+#         ).fillna(0)
+
+#         # Update main df
+#         df.loc[df_ui.index, ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
+#                              "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]] = \
+#             st.session_state.edited_df[
+#                 ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
+#                  "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
+#             ].values
+
+#         # Recalculate adjustment if needed
+#         recalc_mask = (
+#             (df["STATUS_MATCHED_ESTIMATION"].astype(str).str.upper() == "ESTIMATION NOT MATCHED") &
+#             (df["ADJUSTMENT_AMOUNT"].fillna(0) == 0)
+#         )
+#         df.loc[recalc_mask, "ADJUSTMENT_AMOUNT"] = df.loc[recalc_mask, "BASIC_AMOUNT"]
+
+#         # Upload
+#         upload_excel_to_github(df)
+#         time.sleep(5)
+#         upload_excel_to_drive(df)
+
+#         # ✅ Update session_state
+#         st.session_state.df = df.copy()
+
+#         st.cache_data.clear()
+#         st.success("✅ Changes saved successfully (No rerun reset!)")
+
+#     except Exception as e:
+#         st.error(f"❌ Save failed: {e}")
+
+
+# # ---------------------------------------------------
+# # PROJECT SUMMARY
+# # ---------------------------------------------------
+# st.write("---")
+# st.subheader("💼 Project-wise Highest Expense")
+
+# expense_df = df.copy()
+# expense_df["FINAL AMOUNT"] = pd.to_numeric(expense_df["FINAL AMOUNT"], errors="coerce").fillna(0)
+# expense_df["PROJECT_NAME"] = expense_df["PROJECT_NAME"].astype(str).str.upper().str.strip()
+
+# grp = expense_df.groupby(["PROJECT_NAME", "CATEGORY"])["FINAL AMOUNT"].sum().reset_index()
+# top_expenses = grp.sort_values("FINAL AMOUNT", ascending=False).groupby("PROJECT_NAME").head(1)
+
+# st.dataframe(top_expenses, use_container_width=True)
+
+
+# chart = alt.Chart(top_expenses).mark_bar().encode(
+#     x="PROJECT_NAME:N",
+#     y="FINAL AMOUNT:Q",
+#     color="CATEGORY:N",
+#     tooltip=["PROJECT_NAME", "CATEGORY", "FINAL AMOUNT"]
+# ).properties(height=400)
+
+# st.altair_chart(chart, use_container_width=True)
+
+# st.info("ℹ GitHub is the working copy. Google Drive is the final synced file.")
+
 import io
 import json
 import base64
@@ -1587,7 +2232,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System.</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,</h1>", unsafe_allow_html=True)
 st.write("---")
 
 # ---------------------------------------------------
@@ -1701,91 +2346,29 @@ def upload_excel_to_github(df):
 # ---------------------------------------------------
 # INITIAL LOAD
 # ---------------------------------------------------
-# if st.session_state.df is None:
-#     with st.spinner("🔄 Syncing Excel from Drive → GitHub..."):
-#         drive_df = download_excel_from_drive()
-#         upload_excel_to_github(drive_df)
-#         df = download_excel_from_github()
-
-#         for col in ["APPROVAL_1", "APPROVAL_2"]:
-#             if col not in df.columns:
-#                 df[col] = ""
-
-#         st.session_state.df = df.reset_index(drop=True)
-
-# df = st.session_state.df.copy()
-
-# # ---------------------------------------------------
-# # FILTER UI
-# # ---------------------------------------------------
-# df_ui = df[
-#     ~(
-#         (df["APPROVAL_1"].astype(str).str.upper() == "REJECTED") &
-#         (df["APPROVAL_2"].astype(str).str.upper() == "REJECTED")
-#     )
-# ].copy()
-
-# INITIAL LOAD
-if st.session_state.get("df") is None:
+if st.session_state.df is None:
     with st.spinner("🔄 Syncing Excel from Drive → GitHub..."):
         drive_df = download_excel_from_drive()
         upload_excel_to_github(drive_df)
         df = download_excel_from_github()
 
-        # Add missing approval columns if not exist
         for col in ["APPROVAL_1", "APPROVAL_2"]:
             if col not in df.columns:
                 df[col] = ""
 
         st.session_state.df = df.reset_index(drop=True)
 
-# Always work with session_state.df
-df = st.session_state.df
+df = st.session_state.df.copy()
 
-# -------------------------------
-# Filter for UI (pending approvals)
-# -------------------------------
-
-
-# -------------------------------
-# Prepare UI DataFrame (Pending Approvals)
-# -------------------------------
-if st.session_state.get("edited_df") is None:
-    # Filter out fully rejected rows
-    df_ui = df[
-        ~(
-            (df["APPROVAL_1"].astype(str).str.upper() == "REJECTED") &
-            (df["APPROVAL_2"].astype(str).str.upper() == "REJECTED")
-        )
-    ].copy()
-
-    # Keep only display columns
-    DISPLAY_COLUMNS = [
-        "STATUS_MATCHED_ESTIMATION", "GST %", "TDS %",
-        "GST (Yes/No)", "TDS (Yes/No)",
-        "BENEFICIARY PAN", "BENEFICIARY GSTIN",
-        "BENEFICIARY ACCOUNT NO", "FINAL AMOUNT",
-        "PROJECT_NAME", "CATEGORY",
-        "FIXED_AMOUNT", "BALANCE_AMOUNT",
-        "ADJUSTMENT_AMOUNT", "BASIC_AMOUNT",
-        "APPROVAL_1", "APPROVAL_2",
-        "BENEFICIARY NAME", "NARRATION",
-        "Remarks", "DATE","COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY" 
-    ]
-    df_ui = df_ui[DISPLAY_COLUMNS]
-
-    # Force text columns to strings
-    TEXT_COLS = ["COST_CENTER", "LEDGER_NAME", "LEDGER_UNDER", "TO", "BY"]
-    for col in TEXT_COLS:
-        df_ui[col] = df_ui[col].astype(str).replace("nan", "").replace("0", "").replace("0.0","").replace("0.00","")
-
-    # Set session state
-    st.session_state.edited_df = df_ui.copy()
-
-# Use the existing edited_df for UI
-df_ui = st.session_state.edited_df
-
-
+# ---------------------------------------------------
+# FILTER UI
+# ---------------------------------------------------
+df_ui = df[
+    ~(
+        (df["APPROVAL_1"].astype(str).str.upper() == "REJECTED") &
+        (df["APPROVAL_2"].astype(str).str.upper() == "REJECTED")
+    )
+].copy()
 
 # ---------------------------------------------------
 # DISPLAY COLUMNS
@@ -1828,11 +2411,9 @@ df_ui.loc[mask, "ADJUSTMENT_AMOUNT"] = df_ui.loc[mask, "BASIC_AMOUNT"]
 
 
 
-# if st.session_state.edited_df is None:
-#     st.session_state.edited_df = df_ui.copy()
-
-if "edited_df" not in st.session_state or st.session_state.edited_df is None:
+if st.session_state.edited_df is None:
     st.session_state.edited_df = df_ui.copy()
+
 
 
 
@@ -1906,55 +2487,15 @@ st.subheader("📂 Pending Approvals")
 #     submit = st.form_submit_button("💾 Save Bulk Approval")
 
 
-# with st.form("approval_form"):
-#     edited_df = st.data_editor(
-#         st.session_state.edited_df.assign(
-#             COST_CENTER=st.session_state.edited_df["COST_CENTER"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
-#             LEDGER_NAME=st.session_state.edited_df["LEDGER_NAME"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
-#             LEDGER_UNDER=st.session_state.edited_df["LEDGER_UNDER"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
-#             TO=st.session_state.edited_df["TO"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
-#             BY=st.session_state.edited_df["BY"].astype(str).replace("0", "").replace("0.0","").replace("0.00","")
-#         ),
-#         hide_index=True,
-#         use_container_width=True,
-#         disabled=[
-#             c for c in df_ui.columns
-#             if c not in ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
-#                          "COST_CENTER", "LEDGER_NAME", "LEDGER_UNDER", "TO", "BY"]
-#         ],
-#         column_config={
-#             "APPROVAL_1": st.column_config.SelectboxColumn(
-#                 "APPROVAL_1",
-#                 options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
-#             ),
-#             "APPROVAL_2": st.column_config.SelectboxColumn(
-#                 "APPROVAL_2",
-#                 options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
-#             ),
-#             "BASIC_AMOUNT": st.column_config.NumberColumn(
-#                 "BASIC_AMOUNT",
-#                 min_value=0,
-#                 step=1,
-#                 format="%.2f"
-#             ),
-#             "COST_CENTER": st.column_config.TextColumn("COST_CENTER"),
-#             "LEDGER_NAME": st.column_config.TextColumn("LEDGER_NAME"),
-#             "LEDGER_UNDER": st.column_config.TextColumn("LEDGER_UNDER"),
-#             "TO": st.column_config.TextColumn("TO"),
-#             "BY": st.column_config.TextColumn("BY")
-#         }
-#     )
-#     st.session_state.edited_df = edited_df.copy()
-
-
-#     submit = st.form_submit_button("💾 Save Bulk Approval")
-
-
 with st.form("approval_form"):
-    # Use session_state.edited_df directly
     edited_df = st.data_editor(
-        st.session_state.edited_df,
-        key="approval_editor",
+        st.session_state.edited_df.assign(
+            COST_CENTER=st.session_state.edited_df["COST_CENTER"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
+            LEDGER_NAME=st.session_state.edited_df["LEDGER_NAME"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
+            LEDGER_UNDER=st.session_state.edited_df["LEDGER_UNDER"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
+            TO=st.session_state.edited_df["TO"].astype(str).replace("0", "").replace("0.0","").replace("0.00",""),
+            BY=st.session_state.edited_df["BY"].astype(str).replace("0", "").replace("0.0","").replace("0.00","")
+        ),
         hide_index=True,
         use_container_width=True,
         disabled=[
@@ -1988,6 +2529,7 @@ with st.form("approval_form"):
     submit = st.form_submit_button("💾 Save Bulk Approval")
 
 
+
 # ---------------------------------------------------
 # SAVE
 # ---------------------------------------------------
@@ -2013,170 +2555,35 @@ with st.form("approval_form"):
 #     except Exception as e:
 #         st.error(f"❌ Save failed: {e}")
 
-# if submit:
-#     try:
-#         # Fill empty/null text columns with "0" before saving
-#         for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
-#             edited_df[col] = edited_df[col].fillna("0").replace("", "0")
-
-#         # Ensure BASIC_AMOUNT is numeric
-#         edited_df["BASIC_AMOUNT"] = pd.to_numeric(edited_df["BASIC_AMOUNT"], errors="coerce").fillna(0)
-
-#         # Update df with edited values
-#         df.loc[df_ui.index, ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
-#                              "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]] = \
-#             edited_df[["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
-#                        "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]].values
-
-#         # Recalculate ADJUSTMENT_AMOUNT if ESTIMATION NOT MATCHED
-#         recalc_mask = (
-#             (df["STATUS_MATCHED_ESTIMATION"].astype(str).str.upper() == "ESTIMATION NOT MATCHED") &
-#             (df["ADJUSTMENT_AMOUNT"].fillna(0) == 0)
-#         )
-#         df.loc[recalc_mask, "ADJUSTMENT_AMOUNT"] = df.loc[recalc_mask, "BASIC_AMOUNT"]
-
-#         # Upload to GitHub and Drive
-#         upload_excel_to_github(df)
-#         time.sleep(5)  # Give GitHub time to process
-#         upload_excel_to_drive(df)
-
-#         st.cache_data.clear()
-#         st.success("✅ Saved to GitHub and synced back to Google Drive")
-
-#     except Exception as e:
-#         st.error(f"❌ Save failed: {e}")
-
-# if submit:
-#     try:
-#         edited_df = st.session_state.edited_df.copy()
-
-#         # Clean text columns
-#         for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
-#             edited_df[col] = edited_df[col].astype(str).fillna("0").replace("", "0")
-
-#         edited_df["BASIC_AMOUNT"] = pd.to_numeric(
-#             edited_df["BASIC_AMOUNT"], errors="coerce"
-#         ).fillna(0)
-
-#         # 🔧 CRITICAL FIX
-#         df["APPROVAL_1"] = df["APPROVAL_1"].astype(str).replace("nan","")
-#         df["APPROVAL_2"] = df["APPROVAL_2"].astype(str).replace("nan","")
-
-#         # Push edited values
-#         df.loc[
-#             df_ui.index,
-#             ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
-#              "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
-#         ] = edited_df[
-#             ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
-#              "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
-#         ].values
-
-#         recalc_mask = (
-#             (df["STATUS_MATCHED_ESTIMATION"].astype(str).str.upper() == "ESTIMATION NOT MATCHED") &
-#             (df["ADJUSTMENT_AMOUNT"].fillna(0) == 0)
-#         )
-#         df.loc[recalc_mask, "ADJUSTMENT_AMOUNT"] = df.loc[recalc_mask, "BASIC_AMOUNT"]
-
-#         upload_excel_to_github(df)
-#         time.sleep(5)
-#         upload_excel_to_drive(df)
-
-#         st.cache_data.clear()
-#         st.success("✅ Changes saved successfully")
-
-#     except Exception as e:
-#         st.error(f"❌ Save failed: {e}")
-
-
-
-# if submit:
-#     try:
-#         edited_df = st.session_state.edited_df.copy()
-
-#         # Clean text columns
-#         for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
-#             edited_df[col] = edited_df[col].astype(str).fillna("0").replace("", "0")
-
-#         edited_df["BASIC_AMOUNT"] = pd.to_numeric(
-#             edited_df["BASIC_AMOUNT"], errors="coerce"
-#         ).fillna(0)
-
-#         # Clean df approval columns
-#         df["APPROVAL_1"] = df["APPROVAL_1"].astype(str).replace("nan","")
-#         df["APPROVAL_2"] = df["APPROVAL_2"].astype(str).replace("nan","")
-
-#         # Update df with edited values
-#         df.loc[
-#             df_ui.index,
-#             ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
-#              "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
-#         ] = edited_df[
-#             ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
-#              "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
-#         ].values
-
-#         # Recalculate ADJUSTMENT_AMOUNT if needed
-#         recalc_mask = (
-#             (df["STATUS_MATCHED_ESTIMATION"].astype(str).str.upper() == "ESTIMATION NOT MATCHED") &
-#             (df["ADJUSTMENT_AMOUNT"].fillna(0) == 0)
-#         )
-#         df.loc[recalc_mask, "ADJUSTMENT_AMOUNT"] = df.loc[recalc_mask, "BASIC_AMOUNT"]
-
-#         # Upload changes
-#         upload_excel_to_github(df)
-#         time.sleep(5)
-#         upload_excel_to_drive(df)
-
-#         # ✅ Update session_state so rerun preserves edits
-#         st.session_state.df = df.copy()
-#         st.session_state.edited_df = edited_df.copy()
-
-#         st.cache_data.clear()
-#         st.success("✅ Changes saved successfully")
-
-#     except Exception as e:
-#         st.error(f"❌ Save failed: {e}")
-
-
 if submit:
     try:
-        # Save edited_df to session_state first (prevents losing edits)
-        st.session_state.edited_df = edited_df.copy()
-
-        # Clean numeric/text columns
+        # Fill empty/null text columns with "0" before saving
         for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
-            st.session_state.edited_df[col] = st.session_state.edited_df[col].astype(str).fillna("0").replace("", "0")
+            edited_df[col] = edited_df[col].fillna("0").replace("", "0")
 
-        st.session_state.edited_df["BASIC_AMOUNT"] = pd.to_numeric(
-            st.session_state.edited_df["BASIC_AMOUNT"], errors="coerce"
-        ).fillna(0)
+        # Ensure BASIC_AMOUNT is numeric
+        edited_df["BASIC_AMOUNT"] = pd.to_numeric(edited_df["BASIC_AMOUNT"], errors="coerce").fillna(0)
 
-        # Update main df
-        df.loc[df_ui.index, ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
+        # Update df with edited values
+        df.loc[df_ui.index, ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
                              "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]] = \
-            st.session_state.edited_df[
-                ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
-                 "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
-            ].values
+            edited_df[["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
+                       "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]].values
 
-        # Recalculate adjustment if needed
+        # Recalculate ADJUSTMENT_AMOUNT if ESTIMATION NOT MATCHED
         recalc_mask = (
             (df["STATUS_MATCHED_ESTIMATION"].astype(str).str.upper() == "ESTIMATION NOT MATCHED") &
             (df["ADJUSTMENT_AMOUNT"].fillna(0) == 0)
         )
         df.loc[recalc_mask, "ADJUSTMENT_AMOUNT"] = df.loc[recalc_mask, "BASIC_AMOUNT"]
 
-        # Upload
+        # Upload to GitHub and Drive
         upload_excel_to_github(df)
-        time.sleep(5)
+        time.sleep(5)  # Give GitHub time to process
         upload_excel_to_drive(df)
 
-        # ✅ Update session_state
-        st.session_state.df = df.copy()
-
         st.cache_data.clear()
-        st.success("✅ Changes saved successfully (No rerun reset!)")
+        st.success("✅ Saved to GitHub and synced back to Google Drive")
 
     except Exception as e:
         st.error(f"❌ Save failed: {e}")
