@@ -1071,7 +1071,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System.</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,</h1>", unsafe_allow_html=True)
 st.write("---")
 
 # ---------------------------------------------------
@@ -1250,9 +1250,11 @@ df_ui.loc[mask, "ADJUSTMENT_AMOUNT"] = df_ui.loc[mask, "BASIC_AMOUNT"]
 
 
 
-if st.session_state.edited_df is None:
-    st.session_state.edited_df = df_ui.copy()
+# if st.session_state.edited_df is None:
+#     st.session_state.edited_df = df_ui.copy()
 
+if "edited_df" not in st.session_state or st.session_state.edited_df is None:
+    st.session_state.edited_df = df_ui.copy()
 
 
 
