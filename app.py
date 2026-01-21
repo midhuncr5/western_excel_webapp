@@ -2641,7 +2641,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,/</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,</h1>", unsafe_allow_html=True)
 st.write("---")
 
 # ---------------------------------------------------
@@ -3177,6 +3177,20 @@ if submit:
         upload_excel_to_drive(df)
 
         st.cache_data.clear()
+        # ---- Refresh session state after save so dropdowns don't revert ----
+        st.session_state.df = df.copy()
+
+        df_ui_new = df[
+         ~(
+        (df["APPROVAL_1"].astype(str).str.upper() == "REJECTED") &
+        (df["APPROVAL_2"].astype(str).str.upper() == "REJECTED")
+         )
+        ].copy()
+
+        df_ui_new = df_ui_new[DISPLAY_COLUMNS]
+
+        st.session_state.edited_df = df_ui_new.copy()
+
         st.success("✅ Saved to GitHub and synced back to Google Drive")
 
     except Exception as e:
