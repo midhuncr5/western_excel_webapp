@@ -2641,7 +2641,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,,</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,.</h1>", unsafe_allow_html=True)
 st.write("---")
 
 # ---------------------------------------------------
@@ -2953,41 +2953,70 @@ for col in ["APPROVAL_1", "APPROVAL_2"]:
         st.session_state.edited_df[col] = st.session_state.edited_df[col].astype(str).replace("nan","")
 
 
+# with st.form("approval_form"):
+#     edited_df = st.data_editor(
+#         st.session_state.edited_df,
+#         hide_index=True,
+#         use_container_width=True,
+#         disabled=[
+#             c for c in df_ui.columns
+#             if c not in ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
+#                          "COST_CENTER", "LEDGER_NAME", "LEDGER_UNDER", "TO", "BY"]
+#         ],
+#         column_config={
+#             "APPROVAL_1": st.column_config.SelectboxColumn(
+#                 "APPROVAL_1",
+#                 options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
+#             ),
+#             "APPROVAL_2": st.column_config.SelectboxColumn(
+#                 "APPROVAL_2",
+#                 options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
+#             ),
+#             "BASIC_AMOUNT": st.column_config.NumberColumn(
+#                 "BASIC_AMOUNT",
+#                 min_value=0,
+#                 step=1,
+#                 format="%.2f"
+#             ),
+#             "COST_CENTER": st.column_config.TextColumn("COST_CENTER"),
+#             "LEDGER_NAME": st.column_config.TextColumn("LEDGER_NAME"),
+#             "LEDGER_UNDER": st.column_config.TextColumn("LEDGER_UNDER"),
+#             "TO": st.column_config.TextColumn("TO"),
+#             "BY": st.column_config.TextColumn("BY")
+#         }
+#     )
+
+#     submit = st.form_submit_button("💾 Save Bulk Approval")
+
 with st.form("approval_form"):
     edited_df = st.data_editor(
         st.session_state.edited_df,
+        key="editor",   # bind widget state
         hide_index=True,
         use_container_width=True,
         disabled=[
             c for c in df_ui.columns
-            if c not in ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT",
-                         "COST_CENTER", "LEDGER_NAME", "LEDGER_UNDER", "TO", "BY"]
+            if c not in ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
+                         "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
         ],
         column_config={
             "APPROVAL_1": st.column_config.SelectboxColumn(
-                "APPROVAL_1",
-                options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
+                "APPROVAL_1", options=["","ACCEPTED","REJECTED","PAID","HOLD"]
             ),
             "APPROVAL_2": st.column_config.SelectboxColumn(
-                "APPROVAL_2",
-                options=["", "ACCEPTED", "REJECTED", "PAID", "HOLD"]
+                "APPROVAL_2", options=["","ACCEPTED","REJECTED","PAID","HOLD"]
             ),
             "BASIC_AMOUNT": st.column_config.NumberColumn(
-                "BASIC_AMOUNT",
-                min_value=0,
-                step=1,
-                format="%.2f"
+                "BASIC_AMOUNT", min_value=0, step=1, format="%.2f"
             ),
             "COST_CENTER": st.column_config.TextColumn("COST_CENTER"),
             "LEDGER_NAME": st.column_config.TextColumn("LEDGER_NAME"),
             "LEDGER_UNDER": st.column_config.TextColumn("LEDGER_UNDER"),
             "TO": st.column_config.TextColumn("TO"),
-            "BY": st.column_config.TextColumn("BY")
+            "BY": st.column_config.TextColumn("BY"),
         }
     )
-
-    submit = st.form_submit_button("💾 Save Bulk Approval")
-
+    submit = st.form_submit_button("💾 Save")
 
 
 # ---------------------------------------------------
@@ -3204,12 +3233,46 @@ with st.form("approval_form"):
 #     except Exception as e:
 #         st.error(f"❌ Save failed: {e}")
 
+# if submit:
+#     try:
+#         edited_df = edited_df.copy()
+#         edited_df.index = df_ui.index
+
+#         # numeric only
+#         edited_df["BASIC_AMOUNT"] = pd.to_numeric(
+#             edited_df["BASIC_AMOUNT"], errors="coerce"
+#         ).fillna(0)
+
+#         cols = ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT",
+#                 "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
+
+#         df.loc[df_ui.index, cols] = edited_df[cols].values
+
+#         # clean only non-dropdown columns
+#         for col in ["COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]:
+#             df[col] = df[col].fillna("0").replace("", "0")
+
+#         upload_excel_to_github(df)
+#         time.sleep(5)
+#         upload_excel_to_drive(df)
+
+#         st.cache_data.clear()
+#         st.session_state.df = df.copy()
+#         st.session_state.edited_df = df_ui.copy()
+
+#         st.success("✅ Dropdown now saves correctly")
+
+#     except Exception as e:
+#         st.error(f"❌ Save failed: {e}")
+
 if submit:
     try:
+        # freeze editor state immediately
+        st.session_state.edited_df = edited_df.copy()
+
         edited_df = edited_df.copy()
         edited_df.index = df_ui.index
 
-        # numeric only
         edited_df["BASIC_AMOUNT"] = pd.to_numeric(
             edited_df["BASIC_AMOUNT"], errors="coerce"
         ).fillna(0)
@@ -3228,10 +3291,12 @@ if submit:
         upload_excel_to_drive(df)
 
         st.cache_data.clear()
+
+        # refresh UI data
         st.session_state.df = df.copy()
         st.session_state.edited_df = df_ui.copy()
 
-        st.success("✅ Dropdown now saves correctly")
+        st.success("✅ No more data loss on rerun")
 
     except Exception as e:
         st.error(f"❌ Save failed: {e}")
