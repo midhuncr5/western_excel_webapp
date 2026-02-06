@@ -2640,7 +2640,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,,</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,</h1>", unsafe_allow_html=True)
 st.write("---")
 
 # ---------------------------------------------------
@@ -3331,6 +3331,7 @@ if submit:
         # DO NOT overwrite edited_df here
 
         st.success("✅ Saved without rerun data loss")
+        
 
     except Exception as e:
         st.error(f"❌ Save failed: {e}")
