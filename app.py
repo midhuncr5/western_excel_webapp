@@ -3642,7 +3642,6 @@
 # st.altair_chart(chart, use_container_width=True)
 
 # st.info("ℹ GitHub is working copy. Google Drive is final synced file.")
-
 import io
 import json
 import base64
@@ -3674,9 +3673,6 @@ st.write("---")
 # ---------------------------------------------------
 if "df" not in st.session_state:
     st.session_state.df = None
-
-if "edited_df" not in st.session_state:
-    st.session_state.edited_df = None
 
 # ---------------------------------------------------
 # LOAD SECRETS
@@ -3728,7 +3724,6 @@ def download_excel_from_drive():
 
 def upload_excel_to_drive(df):
     service = get_drive_service()
-
     out = io.BytesIO()
     df.to_excel(out, index=False, engine="openpyxl")
     out.seek(0)
@@ -3739,10 +3734,7 @@ def upload_excel_to_drive(df):
         resumable=True
     )
 
-    service.files().update(
-        fileId=FILE_ID,
-        media_body=media
-    ).execute()
+    service.files().update(fileId=FILE_ID, media_body=media).execute()
 
 # ---------------------------------------------------
 # GITHUB FUNCTIONS
@@ -3795,7 +3787,7 @@ if st.session_state.df is None:
 df = st.session_state.df.copy()
 
 # ---------------------------------------------------
-# FILTER UI
+# FILTER OUT DOUBLE REJECTED
 # ---------------------------------------------------
 df_ui = df[
     ~(
@@ -3819,7 +3811,14 @@ mask = (
 df_ui.loc[mask, "ADJUSTMENT_AMOUNT"] = df_ui.loc[mask, "BASIC_AMOUNT"]
 
 # ---------------------------------------------------
-# DISPLAY ORDER (Checkbox after BASIC_AMOUNT)
+# DATE FIX (No ###### issue)
+# ---------------------------------------------------
+if "DATE" in df_ui.columns:
+    df_ui["DATE"] = pd.to_datetime(df_ui["DATE"], errors="coerce")
+    df_ui["DATE"] = df_ui["DATE"].dt.strftime("%d-%m-%Y")
+
+# ---------------------------------------------------
+# STATUS CHECKBOX SETUP
 # ---------------------------------------------------
 status_cols = ["ACCEPTED", "PAID", "HOLD", "REJECTED"]
 
@@ -3827,12 +3826,14 @@ for col in status_cols:
     if col not in df_ui.columns:
         df_ui[col] = False
 
-# Sync checkboxes from APPROVAL_1
 for idx in df_ui.index:
     val = str(df_ui.at[idx, "APPROVAL_1"]).strip().upper()
     for col in status_cols:
         df_ui.at[idx, col] = (val == col)
 
+# ---------------------------------------------------
+# DISPLAY ORDER (Checkbox after BASIC_AMOUNT)
+# ---------------------------------------------------
 DISPLAY_COLUMNS = [
     "STATUS_MATCHED_ESTIMATION", "GST %", "TDS %",
     "GST (Yes/No)", "TDS (Yes/No)",
@@ -3897,11 +3898,10 @@ if submit:
                 df.at[idx, "APPROVAL_1"] = ""
                 df.at[idx, "APPROVAL_2"] = ""
 
-        # Update other editable columns
-        cols = ["BASIC_AMOUNT","COST_CENTER","LEDGER_NAME",
-                "LEDGER_UNDER","TO","BY"]
+        editable_cols = ["BASIC_AMOUNT","COST_CENTER",
+                         "LEDGER_NAME","LEDGER_UNDER","TO","BY"]
 
-        df.loc[df_ui.index, cols] = edited_df[cols].values
+        df.loc[df_ui.index, editable_cols] = edited_df[editable_cols].values
 
         upload_excel_to_github(df)
         time.sleep(3)
@@ -3916,7 +3916,7 @@ if submit:
         st.error(f"❌ Save failed: {e}")
 
 # ---------------------------------------------------
-# SUMMARY (UNCHANGED)
+# SUMMARY CHART
 # ---------------------------------------------------
 st.write("---")
 st.subheader("💼 Project-wise Highest Expense")
