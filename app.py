@@ -3662,7 +3662,8 @@ from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 st.set_page_config(
     page_title="GitHub Excel Approval System",
     page_icon="📝",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System</h1>", unsafe_allow_html=True)
@@ -3673,6 +3674,9 @@ st.write("---")
 # ---------------------------------------------------
 if "df" not in st.session_state:
     st.session_state.df = None
+
+if "edited_df" not in st.session_state:
+    st.session_state.edited_df = None
 
 # ---------------------------------------------------
 # LOAD SECRETS
@@ -3699,7 +3703,7 @@ SERVICE_ACCOUNT_JSON = st.secrets["SERVICE_ACCOUNT_JSON"]
 HEADERS = {"Authorization": f"token {GITHUB_TOKEN}"}
 
 # ---------------------------------------------------
-# GOOGLE DRIVE
+# GOOGLE DRIVE FUNCTIONS
 # ---------------------------------------------------
 def get_drive_service():
     creds = Credentials.from_service_account_info(
@@ -3741,15 +3745,17 @@ def upload_excel_to_drive(df):
     ).execute()
 
 # ---------------------------------------------------
-# GITHUB
+# GITHUB FUNCTIONS
 # ---------------------------------------------------
 @st.cache_data(ttl=300)
 def download_excel_from_github():
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
     r = requests.get(url, headers=HEADERS)
     r.raise_for_status()
+
     content = r.json()["content"]
     file_bytes = base64.b64decode(content)
+
     return pd.read_excel(io.BytesIO(file_bytes), engine="openpyxl")
 
 def upload_excel_to_github(df):
@@ -3758,6 +3764,7 @@ def upload_excel_to_github(df):
     out.seek(0)
 
     content_b64 = base64.b64encode(out.read()).decode()
+
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
     sha = requests.get(url, headers=HEADERS).json()["sha"]
 
@@ -3774,7 +3781,7 @@ def upload_excel_to_github(df):
 # INITIAL LOAD
 # ---------------------------------------------------
 if st.session_state.df is None:
-    with st.spinner("🔄 Syncing Excel..."):
+    with st.spinner("🔄 Syncing Excel from Drive → GitHub..."):
         drive_df = download_excel_from_drive()
         upload_excel_to_github(drive_df)
         df = download_excel_from_github()
@@ -3788,65 +3795,81 @@ if st.session_state.df is None:
 df = st.session_state.df.copy()
 
 # ---------------------------------------------------
-# STATUS CHECKBOX COLUMNS
+# FILTER UI
+# ---------------------------------------------------
+df_ui = df[
+    ~(
+        (df["APPROVAL_1"].astype(str).str.upper() == "REJECTED") &
+        (df["APPROVAL_2"].astype(str).str.upper() == "REJECTED")
+    )
+].copy()
+
+# ---------------------------------------------------
+# AUTO ADJUSTMENT LOGIC
+# ---------------------------------------------------
+df_ui["BASIC_AMOUNT"] = pd.to_numeric(df_ui["BASIC_AMOUNT"], errors="coerce").fillna(0)
+df_ui["ADJUSTMENT_AMOUNT"] = pd.to_numeric(df_ui["ADJUSTMENT_AMOUNT"], errors="coerce").fillna(0)
+
+mask = (
+    (df_ui["STATUS_MATCHED_ESTIMATION"].fillna("").str.upper() == "ESTIMATION NOT MATCHED") &
+    (df_ui["BASIC_AMOUNT"] != 0) &
+    (df_ui["ADJUSTMENT_AMOUNT"] == 0)
+)
+
+df_ui.loc[mask, "ADJUSTMENT_AMOUNT"] = df_ui.loc[mask, "BASIC_AMOUNT"]
+
+# ---------------------------------------------------
+# DISPLAY ORDER (Checkbox after BASIC_AMOUNT)
 # ---------------------------------------------------
 status_cols = ["ACCEPTED", "PAID", "HOLD", "REJECTED"]
 
 for col in status_cols:
-    if col not in df.columns:
-        df[col] = False
+    if col not in df_ui.columns:
+        df_ui[col] = False
 
 # Sync checkboxes from APPROVAL_1
-for idx in df.index:
-    val = str(df.at[idx, "APPROVAL_1"]).strip().upper()
+for idx in df_ui.index:
+    val = str(df_ui.at[idx, "APPROVAL_1"]).strip().upper()
     for col in status_cols:
-        df.at[idx, col] = (val == col)
+        df_ui.at[idx, col] = (val == col)
+
+DISPLAY_COLUMNS = [
+    "STATUS_MATCHED_ESTIMATION", "GST %", "TDS %",
+    "GST (Yes/No)", "TDS (Yes/No)",
+    "BENEFICIARY PAN", "BENEFICIARY GSTIN",
+    "BENEFICIARY ACCOUNT NO", "FINAL AMOUNT",
+    "PROJECT_NAME", "CATEGORY",
+    "FIXED_AMOUNT", "BALANCE_AMOUNT",
+    "ADJUSTMENT_AMOUNT", "BASIC_AMOUNT",
+    "ACCEPTED", "PAID", "HOLD", "REJECTED",
+    "BENEFICIARY NAME", "NARRATION",
+    "Remarks", "DATE","COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"
+]
+
+df_ui = df_ui[DISPLAY_COLUMNS]
 
 # ---------------------------------------------------
-# SELECT / UNSELECT ALL (COLUMN LEVEL)
+# EDITOR
 # ---------------------------------------------------
-st.subheader("Select / Unselect All")
-
-c1, c2, c3, c4 = st.columns(4)
-
-select_all = {}
-
-with c1:
-    select_all["ACCEPTED"] = st.checkbox("All ACCEPTED")
-
-with c2:
-    select_all["PAID"] = st.checkbox("All PAID")
-
-with c3:
-    select_all["HOLD"] = st.checkbox("All HOLD")
-
-with c4:
-    select_all["REJECTED"] = st.checkbox("All REJECTED")
-
-for status in status_cols:
-    if select_all[status]:
-        for col in status_cols:
-            df[col] = False
-        df[status] = True
-        break
-
-# ---------------------------------------------------
-# DATA EDITOR
-# ---------------------------------------------------
-st.write("---")
-st.subheader("📂 Approvals")
+st.subheader("📂 Pending Approvals")
 
 with st.form("approval_form"):
 
     edited_df = st.data_editor(
-        df,
+        df_ui,
         hide_index=True,
         use_container_width=True,
+        disabled=[c for c in df_ui.columns
+                  if c not in ["BASIC_AMOUNT","COST_CENTER","LEDGER_NAME",
+                               "LEDGER_UNDER","TO","BY"] + status_cols],
         column_config={
             "ACCEPTED": st.column_config.CheckboxColumn("ACCEPTED"),
             "PAID": st.column_config.CheckboxColumn("PAID"),
             "HOLD": st.column_config.CheckboxColumn("HOLD"),
             "REJECTED": st.column_config.CheckboxColumn("REJECTED"),
+            "BASIC_AMOUNT": st.column_config.NumberColumn(
+                "BASIC_AMOUNT", min_value=0, step=1, format="%.2f"
+            ),
         }
     )
 
@@ -3857,8 +3880,9 @@ with st.form("approval_form"):
 # ---------------------------------------------------
 if submit:
     try:
-        for idx, row in edited_df.iterrows():
+        edited_df.index = df_ui.index
 
+        for idx, row in edited_df.iterrows():
             selected = [col for col in status_cols if row[col]]
 
             if len(selected) > 1:
@@ -3873,6 +3897,12 @@ if submit:
                 df.at[idx, "APPROVAL_1"] = ""
                 df.at[idx, "APPROVAL_2"] = ""
 
+        # Update other editable columns
+        cols = ["BASIC_AMOUNT","COST_CENTER","LEDGER_NAME",
+                "LEDGER_UNDER","TO","BY"]
+
+        df.loc[df_ui.index, cols] = edited_df[cols].values
+
         upload_excel_to_github(df)
         time.sleep(3)
         upload_excel_to_drive(df)
@@ -3886,7 +3916,7 @@ if submit:
         st.error(f"❌ Save failed: {e}")
 
 # ---------------------------------------------------
-# SUMMARY CHART
+# SUMMARY (UNCHANGED)
 # ---------------------------------------------------
 st.write("---")
 st.subheader("💼 Project-wise Highest Expense")
@@ -3909,4 +3939,4 @@ chart = alt.Chart(top_expenses).mark_bar().encode(
 
 st.altair_chart(chart, use_container_width=True)
 
-st.info("ℹ GitHub is working copy. Google Drive is final synced file.")
+st.info("ℹ GitHub is the working copy. Google Drive is the final synced file.")
