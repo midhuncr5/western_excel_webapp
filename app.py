@@ -3646,7 +3646,6 @@
 
 
 
-
 import io
 import json
 import base64
@@ -3659,6 +3658,7 @@ import altair as alt
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
+from openpyxl.utils import get_column_letter
 
 # ---------------------------------------------------
 # PAGE CONFIG
@@ -3734,7 +3734,23 @@ def upload_excel_to_drive(df):
     service = get_drive_service()
 
     out = io.BytesIO()
-    df.to_excel(out, index=False, engine="openpyxl")
+
+    # ---- FIX DATE COLUMN ----
+    if "DATE" in df.columns:
+        df["DATE"] = pd.to_datetime(df["DATE"], errors="coerce")
+
+    with pd.ExcelWriter(out, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Sheet1")
+        worksheet = writer.sheets["Sheet1"]
+
+        for idx, col in enumerate(df.columns, 1):
+            col_letter = get_column_letter(idx)
+
+            if col == "DATE":
+                worksheet.column_dimensions[col_letter].width = 15
+                for row in range(2, len(df) + 2):
+                    worksheet[f"{col_letter}{row}"].number_format = "DD-MM-YYYY"
+
     out.seek(0)
 
     media = MediaIoBaseUpload(
@@ -3764,7 +3780,22 @@ def download_excel_from_github():
 
 def upload_excel_to_github(df):
     out = io.BytesIO()
-    df.to_excel(out, index=False, engine="openpyxl")
+
+    if "DATE" in df.columns:
+        df["DATE"] = pd.to_datetime(df["DATE"], errors="coerce")
+
+    with pd.ExcelWriter(out, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Sheet1")
+        worksheet = writer.sheets["Sheet1"]
+
+        for idx, col in enumerate(df.columns, 1):
+            col_letter = get_column_letter(idx)
+
+            if col == "DATE":
+                worksheet.column_dimensions[col_letter].width = 15
+                for row in range(2, len(df) + 2):
+                    worksheet[f"{col_letter}{row}"].number_format = "DD-MM-YYYY"
+
     out.seek(0)
 
     content_b64 = base64.b64encode(out.read()).decode()
@@ -3809,35 +3840,34 @@ df_ui = df[
 ].copy()
 
 # ---------------------------------------------------
-# DISPLAY COLUMNS
+# ADD CHECKBOX COLUMNS
 # ---------------------------------------------------
-DISPLAY_COLUMNS = [
-    "STATUS_MATCHED_ESTIMATION", "GST %", "TDS %",
-    "GST (Yes/No)", "TDS (Yes/No)",
-    "BENEFICIARY PAN", "BENEFICIARY GSTIN",
-    "BENEFICIARY ACCOUNT NO", "FINAL AMOUNT",
-    "PROJECT_NAME", "CATEGORY",
-    "FIXED_AMOUNT", "BALANCE_AMOUNT",
-    "ADJUSTMENT_AMOUNT", "BASIC_AMOUNT",
-
-    # NEW CHECKBOX STATUS COLUMNS
-    "ACCEPTED", "PAID", "HOLD", "REJECTED",
-
-    "BENEFICIARY NAME", "NARRATION",
-    "Remarks", "DATE","COST_CENTER","LEDGER_NAME",
-    "LEDGER_UNDER","TO","BY"
-]
-
-# Add checkbox columns
 for col in ["ACCEPTED", "PAID", "HOLD", "REJECTED"]:
     if col not in df_ui.columns:
         df_ui[col] = False
 
-# Sync from approval columns
 for idx in df_ui.index:
     status = str(df.loc[idx, "APPROVAL_1"]).upper()
     if status in ["ACCEPTED", "PAID", "HOLD", "REJECTED"]:
         df_ui.loc[idx, status] = True
+
+# ---------------------------------------------------
+# DISPLAY COLUMNS
+# ---------------------------------------------------
+DISPLAY_COLUMNS = [
+    "STATUS_MATCHED_ESTIMATION","GST %","TDS %",
+    "GST (Yes/No)","TDS (Yes/No)",
+    "BENEFICIARY PAN","BENEFICIARY GSTIN",
+    "BENEFICIARY ACCOUNT NO","FINAL AMOUNT",
+    "PROJECT_NAME","CATEGORY",
+    "FIXED_AMOUNT","BALANCE_AMOUNT",
+    "ADJUSTMENT_AMOUNT","BASIC_AMOUNT",
+    "ACCEPTED","PAID","HOLD","REJECTED",
+    "BENEFICIARY NAME","NARRATION",
+    "Remarks","DATE",
+    "COST_CENTER","LEDGER_NAME",
+    "LEDGER_UNDER","TO","BY"
+]
 
 df_ui = df_ui[DISPLAY_COLUMNS]
 
@@ -3889,7 +3919,6 @@ if submit:
         ).fillna(0)
 
         for idx in edited_df.index:
-
             row = edited_df.loc[idx]
             selected_status = ""
 
@@ -3908,14 +3937,11 @@ if submit:
             df.at[idx, "APPROVAL_1"] = selected_status
             df.at[idx, "APPROVAL_2"] = selected_status
 
-        cols = ["BASIC_AMOUNT",
-                "COST_CENTER","LEDGER_NAME",
-                "LEDGER_UNDER","TO","BY"]
-
+        cols = ["BASIC_AMOUNT","COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"]
         df.loc[df_ui.index, cols] = edited_df[cols].values
 
         upload_excel_to_github(df)
-        time.sleep(5)
+        time.sleep(3)
         upload_excel_to_drive(df)
 
         st.cache_data.clear()
