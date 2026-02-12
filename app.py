@@ -3643,7 +3643,6 @@
 
 # st.info("ℹ GitHub is working copy. Google Drive is final synced file.")
 
-
 import io
 import json
 import base64
@@ -3736,7 +3735,10 @@ def upload_excel_to_drive(df):
         resumable=True
     )
 
-    service.files().update(fileId=FILE_ID, media_body=media).execute()
+    service.files().update(
+        fileId=FILE_ID,
+        media_body=media
+    ).execute()
 
 # ---------------------------------------------------
 # GITHUB
@@ -3786,33 +3788,6 @@ if st.session_state.df is None:
 df = st.session_state.df.copy()
 
 # ---------------------------------------------------
-# DISPLAY COLUMN ORDER
-# ---------------------------------------------------
-DISPLAY_COLUMNS = [
-    "STATUS_MATCHED_ESTIMATION", "GST %", "TDS %",
-    "GST (Yes/No)", "TDS (Yes/No)",
-    "BENEFICIARY PAN", "BENEFICIARY GSTIN",
-    "BENEFICIARY ACCOUNT NO", "FINAL AMOUNT",
-    "PROJECT_NAME", "CATEGORY",
-    "FIXED_AMOUNT", "BALANCE_AMOUNT",
-    "ADJUSTMENT_AMOUNT", "BASIC_AMOUNT",
-    "APPROVAL_1", "APPROVAL_2",
-    "BENEFICIARY NAME", "NARRATION",
-    "Remarks", "DATE",
-    "COST_CENTER", "LEDGER_NAME",
-    "LEDGER_UNDER", "TO", "BY"
-]
-
-for col in DISPLAY_COLUMNS:
-    if col not in df.columns:
-        df[col] = ""
-
-TEXT_COLS = ["COST_CENTER", "LEDGER_NAME", "LEDGER_UNDER", "TO", "BY", "BASIC_AMOUNT"]
-
-for col in TEXT_COLS:
-    df[col] = df[col].astype(str)
-
-# ---------------------------------------------------
 # STATUS CHECKBOX COLUMNS
 # ---------------------------------------------------
 status_cols = ["ACCEPTED", "PAID", "HOLD", "REJECTED"]
@@ -3821,27 +3796,32 @@ for col in status_cols:
     if col not in df.columns:
         df[col] = False
 
-# Sync checkbox with approval
+# Sync checkboxes from APPROVAL_1
 for idx in df.index:
     val = str(df.at[idx, "APPROVAL_1"]).strip().upper()
     for col in status_cols:
         df.at[idx, col] = (val == col)
 
-# Final display order
-df = df[DISPLAY_COLUMNS + status_cols]
-
 # ---------------------------------------------------
-# SELECT ALL PER COLUMN
+# SELECT / UNSELECT ALL (COLUMN LEVEL)
 # ---------------------------------------------------
 st.subheader("Select / Unselect All")
 
 c1, c2, c3, c4 = st.columns(4)
 
 select_all = {}
-select_all["ACCEPTED"] = c1.checkbox("All ACCEPTED")
-select_all["PAID"] = c2.checkbox("All PAID")
-select_all["HOLD"] = c3.checkbox("All HOLD")
-select_all["REJECTED"] = c4.checkbox("All REJECTED")
+
+with c1:
+    select_all["ACCEPTED"] = st.checkbox("All ACCEPTED")
+
+with c2:
+    select_all["PAID"] = st.checkbox("All PAID")
+
+with c3:
+    select_all["HOLD"] = st.checkbox("All HOLD")
+
+with c4:
+    select_all["REJECTED"] = st.checkbox("All REJECTED")
 
 for status in status_cols:
     if select_all[status]:
@@ -3867,11 +3847,7 @@ with st.form("approval_form"):
             "PAID": st.column_config.CheckboxColumn("PAID"),
             "HOLD": st.column_config.CheckboxColumn("HOLD"),
             "REJECTED": st.column_config.CheckboxColumn("REJECTED"),
-        },
-        disabled=[
-            col for col in df.columns
-            if col not in TEXT_COLS + status_cols
-        ]
+        }
     )
 
     submit = st.form_submit_button("💾 Save")
@@ -3889,10 +3865,6 @@ if submit:
                 st.error(f"❌ Only ONE status allowed per row (Row {idx+1})")
                 st.stop()
 
-            # Update editable columns
-            for col in TEXT_COLS:
-                df.at[idx, col] = row[col]
-
             if len(selected) == 1:
                 status = selected[0]
                 df.at[idx, "APPROVAL_1"] = status
@@ -3901,16 +3873,40 @@ if submit:
                 df.at[idx, "APPROVAL_1"] = ""
                 df.at[idx, "APPROVAL_2"] = ""
 
-        df_to_save = df.drop(columns=status_cols, errors="ignore")
+        upload_excel_to_github(df)
+        time.sleep(3)
+        upload_excel_to_drive(df)
 
-        upload_excel_to_github(df_to_save)
-        time.sleep(2)
-        upload_excel_to_drive(df_to_save)
-
-        st.session_state.df = df_to_save.copy()
         st.cache_data.clear()
+        st.session_state.df = df.copy()
 
-        st.success("✅ Saved Successfully (Clean Excel + Editable BASIC_AMOUNT)")
+        st.success("✅ Saved Successfully (Both approvals updated)")
 
     except Exception as e:
         st.error(f"❌ Save failed: {e}")
+
+# ---------------------------------------------------
+# SUMMARY CHART
+# ---------------------------------------------------
+st.write("---")
+st.subheader("💼 Project-wise Highest Expense")
+
+expense_df = df.copy()
+expense_df["FINAL AMOUNT"] = pd.to_numeric(expense_df["FINAL AMOUNT"], errors="coerce").fillna(0)
+expense_df["PROJECT_NAME"] = expense_df["PROJECT_NAME"].astype(str).str.upper().str.strip()
+
+grp = expense_df.groupby(["PROJECT_NAME", "CATEGORY"])["FINAL AMOUNT"].sum().reset_index()
+top_expenses = grp.sort_values("FINAL AMOUNT", ascending=False).groupby("PROJECT_NAME").head(1)
+
+st.dataframe(top_expenses, use_container_width=True)
+
+chart = alt.Chart(top_expenses).mark_bar().encode(
+    x="PROJECT_NAME:N",
+    y="FINAL AMOUNT:Q",
+    color="CATEGORY:N",
+    tooltip=["PROJECT_NAME", "CATEGORY", "FINAL AMOUNT"]
+).properties(height=400)
+
+st.altair_chart(chart, use_container_width=True)
+
+st.info("ℹ GitHub is working copy. Google Drive is final synced file.")
