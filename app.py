@@ -3643,7 +3643,6 @@
 
 # st.info("ℹ GitHub is working copy. Google Drive is final synced file.")
 
-
 import io
 import json
 import base64
@@ -3841,71 +3840,37 @@ if st.session_state.edited_df is None:
     st.session_state.edited_df = df_ui.copy()
 
 # ---------------------------------------------------
-# ADD STATUS CHECKBOX COLUMNS
+# RADIO BUTTON STATUS SETUP
 # ---------------------------------------------------
 STATUS_COLUMNS = ["ACCEPTED", "PAID", "HOLD", "REJECTED"]
 
-for col in STATUS_COLUMNS:
-    if col not in st.session_state.edited_df.columns:
-        st.session_state.edited_df[col] = False
-
-for col in STATUS_COLUMNS:
-    st.session_state.edited_df[col] = st.session_state.edited_df[col].astype(bool)
-
-# ---------------------------------------------------
-# REORDER → Place checkboxes after BASIC_AMOUNT
-# ---------------------------------------------------
-cols = list(st.session_state.edited_df.columns)
-
-if "BASIC_AMOUNT" in cols:
-    basic_index = cols.index("BASIC_AMOUNT")
-
+def get_status(row):
     for s in STATUS_COLUMNS:
-        if s in cols:
-            cols.remove(s)
+        if row.get(s, False):
+            return s
+    return ""
 
-    for i, s in enumerate(STATUS_COLUMNS):
-        cols.insert(basic_index + 1 + i, s)
+# Add STATUS column for editor
+st.session_state.edited_df["STATUS"] = st.session_state.edited_df.apply(get_status, axis=1)
 
-    st.session_state.edited_df = st.session_state.edited_df[cols]
-
-# ---------------------------------------------------
-# SELECT ALL OPTIONS
-# ---------------------------------------------------
-st.subheader("📂 Pending Approvals")
-st.markdown("### 🔘 Select All Options")
-
-col1, col2, col3, col4 = st.columns(4)
-
-select_all = {}
-with col1:
-    select_all["ACCEPTED"] = st.checkbox("Select All ACCEPTED")
-with col2:
-    select_all["PAID"] = st.checkbox("Select All PAID")
-with col3:
-    select_all["HOLD"] = st.checkbox("Select All HOLD")
-with col4:
-    select_all["REJECTED"] = st.checkbox("Select All REJECTED")
-
-for status, value in select_all.items():
-    if value:
-        st.session_state.edited_df[STATUS_COLUMNS] = False
-        st.session_state.edited_df[status] = True
+# Remove old checkbox columns from editor
+editor_df = st.session_state.edited_df.drop(columns=STATUS_COLUMNS)
 
 # ---------------------------------------------------
 # EDITOR
 # ---------------------------------------------------
 with st.form("approval_form"):
     edited_df = st.data_editor(
-        st.session_state.edited_df,
+        editor_df,
         key="editor",
         hide_index=True,
         use_container_width=True,
         column_config={
-            "ACCEPTED": st.column_config.CheckboxColumn("ACCEPTED"),
-            "PAID": st.column_config.CheckboxColumn("PAID"),
-            "HOLD": st.column_config.CheckboxColumn("HOLD"),
-            "REJECTED": st.column_config.CheckboxColumn("REJECTED"),
+            "STATUS": st.column_config.SelectboxColumn(
+                "STATUS",
+                options=STATUS_COLUMNS,
+                format_func=lambda x: x
+            ),
             "BASIC_AMOUNT": st.column_config.NumberColumn("BASIC_AMOUNT", format="%.2f"),
         }
     )
@@ -3916,40 +3881,28 @@ with st.form("approval_form"):
 # SAVE LOGIC
 # ---------------------------------------------------
 if submit:
-    try:
-        edited_df = edited_df.copy()
-        edited_df.index = df_ui.index
+    for idx, row in edited_df.iterrows():
+        selected = row["STATUS"]
 
-        for idx, row in edited_df.iterrows():
-            selected = [s for s in STATUS_COLUMNS if row[s]]
+        # Reset all checkbox columns
+        for s in STATUS_COLUMNS:
+            st.session_state.edited_df.at[idx, s] = (s == selected)
 
-            if len(selected) > 1:
-                last = selected[-1]
-                for s in STATUS_COLUMNS:
-                    edited_df.at[idx, s] = (s == last)
+        # Update APPROVAL columns
+        st.session_state.edited_df.at[idx, "APPROVAL_1"] = selected
+        st.session_state.edited_df.at[idx, "APPROVAL_2"] = selected
 
-            final_status = ""
-            for s in STATUS_COLUMNS:
-                if edited_df.at[idx, s]:
-                    final_status = s
+    # Update df with the edited values
+    cols = ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT"] + STATUS_COLUMNS
+    df.loc[df_ui.index, cols] = st.session_state.edited_df[cols].values
 
-            edited_df.at[idx, "APPROVAL_1"] = final_status
-            edited_df.at[idx, "APPROVAL_2"] = final_status
+    upload_excel_to_github(df)
+    time.sleep(3)
+    upload_excel_to_drive(df)
 
-        cols = ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT"] + STATUS_COLUMNS
-        df.loc[df_ui.index, cols] = edited_df[cols].values
-
-        upload_excel_to_github(df)
-        time.sleep(3)
-        upload_excel_to_drive(df)
-
-        st.cache_data.clear()
-        st.session_state.df = df.copy()
-
-        st.success("✅ Saved Successfully")
-
-    except Exception as e:
-        st.error(f"❌ Save failed: {e}")
+    st.cache_data.clear()
+    st.session_state.df = df.copy()
+    st.success("✅ Saved Successfully")
 
 # ---------------------------------------------------
 # PROJECT SUMMARY
