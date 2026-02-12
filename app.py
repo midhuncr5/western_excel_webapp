@@ -3795,7 +3795,6 @@ DISPLAY_COLUMNS = [
     "PROJECT_NAME", "CATEGORY",
     "FIXED_AMOUNT", "BALANCE_AMOUNT",
     "ADJUSTMENT_AMOUNT", "BASIC_AMOUNT",
-    "APPROVAL_1", "APPROVAL_2",
     "BENEFICIARY NAME", "NARRATION",
     "Remarks", "DATE",
     "COST_CENTER", "LEDGER_NAME",
@@ -3806,6 +3805,7 @@ for col in DISPLAY_COLUMNS:
     if col not in df.columns:
         df[col] = ""
 
+# Editable columns
 TEXT_COLS = ["COST_CENTER", "LEDGER_NAME", "LEDGER_UNDER", "TO", "BY", "BASIC_AMOUNT"]
 
 for col in TEXT_COLS:
@@ -3820,17 +3820,27 @@ for col in status_cols:
     if col not in df.columns:
         df[col] = False
 
-# Sync checkbox with approval
+# Sync checkbox from approval
 for idx in df.index:
     val = str(df.at[idx, "APPROVAL_1"]).strip().upper()
     for col in status_cols:
         df.at[idx, col] = (val == col)
 
-# Final display order
-df = df[DISPLAY_COLUMNS + status_cols]
+# ---------------------------------------------------
+# FINAL COLUMN ORDER (STATUS AFTER BASIC_AMOUNT)
+# ---------------------------------------------------
+basic_index = DISPLAY_COLUMNS.index("BASIC_AMOUNT")
+
+final_columns = (
+    DISPLAY_COLUMNS[:basic_index + 1] +
+    status_cols +
+    DISPLAY_COLUMNS[basic_index + 1:]
+)
+
+df = df[final_columns]
 
 # ---------------------------------------------------
-# SELECT ALL PER COLUMN
+# SELECT ALL
 # ---------------------------------------------------
 st.subheader("Select / Unselect All")
 
@@ -3909,7 +3919,7 @@ if submit:
         st.session_state.df = df_to_save.copy()
         st.cache_data.clear()
 
-        st.success("✅ Saved Successfully (Clean Excel + Editable BASIC_AMOUNT)")
+        st.success("✅ Saved Successfully")
 
     except Exception as e:
         st.error(f"❌ Save failed: {e}")
