@@ -3643,6 +3643,7 @@
 
 # st.info("ℹ GitHub is working copy. Google Drive is final synced file.")
 
+
 import io
 import json
 import base64
@@ -3850,23 +3851,25 @@ for s in STATUS_OPTIONS:
         st.session_state.edited_df[s] = False
 
 # ---------------------------------------------------
-# SELECT ALL CHECKBOXES PER COLUMN
+# BULK APPROVAL BUTTONS
 # ---------------------------------------------------
-st.subheader("⚡ Select All Checkboxes for STATUS Columns")
+st.subheader("⚡ Bulk Approval - Set all rows to a STATUS")
 cols = st.columns(len(STATUS_OPTIONS))
 for i, status in enumerate(STATUS_OPTIONS):
-    if cols[i].button(f"Select All → {status}"):
-        st.session_state.edited_df[status] = True
-        st.success(f"✅ All rows selected for {status}")
+    if cols[i].button(f"Set All → {status}"):
+        for idx in st.session_state.edited_df.index:
+            for s in STATUS_OPTIONS:
+                st.session_state.edited_df.at[idx, s] = (s == status)
+            st.session_state.edited_df.at[idx, "APPROVAL_1"] = status
+            st.session_state.edited_df.at[idx, "APPROVAL_2"] = status
+        st.success(f"✅ All rows set to {status}")
 
 # ---------------------------------------------------
 # EDITOR FORM
 # ---------------------------------------------------
 with st.form("approval_form"):
-    editor_df = st.session_state.edited_df.copy()
-    
     edited_df = st.data_editor(
-        editor_df,
+        st.session_state.edited_df.copy(),
         key="editor",
         hide_index=True,
         use_container_width=True,
@@ -3882,7 +3885,7 @@ with st.form("approval_form"):
 # ---------------------------------------------------
 if submit:
     for idx, row in edited_df.iterrows():
-        # Update original checkbox columns
+        # Update checkbox columns
         for s in STATUS_OPTIONS:
             st.session_state.edited_df.at[idx, s] = row.get(s, False)
         # Set APPROVAL_1 & APPROVAL_2 based on selected checkbox
@@ -3924,10 +3927,6 @@ chart = alt.Chart(top_expenses).mark_bar().encode(
     color="CATEGORY:N",
     tooltip=["PROJECT_NAME", "CATEGORY", "FINAL AMOUNT"]
 ).properties(height=400)
-
-st.altair_chart(chart, use_container_width=True)
-
-st.info("ℹ GitHub is the working copy. Google Drive is the final synced file.")
 
 st.altair_chart(chart, use_container_width=True)
 
