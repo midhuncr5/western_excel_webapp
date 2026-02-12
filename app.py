@@ -3643,6 +3643,8 @@
 
 # st.info("ℹ GitHub is working copy. Google Drive is final synced file.")
 
+
+
 import io
 import json
 import base64
@@ -3728,6 +3730,7 @@ def download_excel_from_drive():
 
 def upload_excel_to_drive(df):
     service = get_drive_service()
+
     out = io.BytesIO()
     df.to_excel(out, index=False, engine="openpyxl")
     out.seek(0)
@@ -3839,7 +3842,7 @@ if st.session_state.edited_df is None:
     st.session_state.edited_df = df_ui.copy()
 
 # ---------------------------------------------------
-# STATUS CHECKBOX COLUMNS
+# ADD STATUS CHECKBOX COLUMNS
 # ---------------------------------------------------
 STATUS_COLUMNS = ["ACCEPTED", "PAID", "HOLD", "REJECTED"]
 
@@ -3847,45 +3850,48 @@ for col in STATUS_COLUMNS:
     if col not in st.session_state.edited_df.columns:
         st.session_state.edited_df[col] = False
 
-st.session_state.edited_df[STATUS_COLUMNS] = st.session_state.edited_df[STATUS_COLUMNS].astype(bool)
+for col in STATUS_COLUMNS:
+    st.session_state.edited_df[col] = st.session_state.edited_df[col].astype(bool)
 
 # ---------------------------------------------------
-# REORDER → Place after BASIC_AMOUNT
+# REORDER → Place checkboxes after BASIC_AMOUNT
 # ---------------------------------------------------
 cols = list(st.session_state.edited_df.columns)
 
 if "BASIC_AMOUNT" in cols:
     basic_index = cols.index("BASIC_AMOUNT")
+
     for s in STATUS_COLUMNS:
         if s in cols:
             cols.remove(s)
+
     for i, s in enumerate(STATUS_COLUMNS):
         cols.insert(basic_index + 1 + i, s)
+
     st.session_state.edited_df = st.session_state.edited_df[cols]
 
 # ---------------------------------------------------
-# COLUMN SELECT ALL OPTIONS
+# SELECT ALL OPTIONS
 # ---------------------------------------------------
 st.subheader("📂 Pending Approvals")
+st.markdown("### 🔘 Select All Options")
 
-header_cols = st.columns(4)
+col1, col2, col3, col4 = st.columns(4)
+select_all = {}
+with col1:
+    select_all["ACCEPTED"] = st.checkbox("Select All ACCEPTED")
+with col2:
+    select_all["PAID"] = st.checkbox("Select All PAID")
+with col3:
+    select_all["HOLD"] = st.checkbox("Select All HOLD")
+with col4:
+    select_all["REJECTED"] = st.checkbox("Select All REJECTED")
 
-select_all_accepted = header_cols[0].checkbox("✅ ACCEPTED (All)", key="all_acc")
-select_all_paid     = header_cols[1].checkbox("💰 PAID (All)", key="all_paid")
-select_all_hold     = header_cols[2].checkbox("⏸ HOLD (All)", key="all_hold")
-select_all_rejected = header_cols[3].checkbox("❌ REJECTED (All)", key="all_rej")
-
-if any([select_all_accepted, select_all_paid, select_all_hold, select_all_rejected]):
-    st.session_state.edited_df[STATUS_COLUMNS] = False
-
-    if select_all_accepted:
-        st.session_state.edited_df["ACCEPTED"] = True
-    elif select_all_paid:
-        st.session_state.edited_df["PAID"] = True
-    elif select_all_hold:
-        st.session_state.edited_df["HOLD"] = True
-    elif select_all_rejected:
-        st.session_state.edited_df["REJECTED"] = True
+# Apply select all
+for status, value in select_all.items():
+    if value:
+        st.session_state.edited_df[STATUS_COLUMNS] = False
+        st.session_state.edited_df[status] = True
 
 # ---------------------------------------------------
 # EDITOR
@@ -3896,19 +3902,13 @@ with st.form("approval_form"):
         key="editor",
         hide_index=True,
         use_container_width=True,
-        column_config={
-            "ACCEPTED": st.column_config.CheckboxColumn("ACCEPTED"),
-            "PAID": st.column_config.CheckboxColumn("PAID"),
-            "HOLD": st.column_config.CheckboxColumn("HOLD"),
-            "REJECTED": st.column_config.CheckboxColumn("REJECTED"),
-            "BASIC_AMOUNT": st.column_config.NumberColumn("BASIC_AMOUNT", format="%.2f"),
-        }
+        column_config={s: st.column_config.CheckboxColumn(s) for s in STATUS_COLUMNS}
     )
 
     submit = st.form_submit_button("💾 Save")
 
 # ---------------------------------------------------
-# SAVE LOGIC
+# SAVE LOGIC (SINGLE ROW SELECTION ENFORCED)
 # ---------------------------------------------------
 if submit:
     try:
@@ -3916,31 +3916,36 @@ if submit:
         edited_df.index = df_ui.index
 
         for idx, row in edited_df.iterrows():
-            selected = [s for s in STATUS_COLUMNS if row[s]]
+            selected_status = [s for s in STATUS_COLUMNS if row[s]]
 
-            if len(selected) > 1:
-                last = selected[-1]
+            # Keep only one checkbox per row
+            if len(selected_status) > 1:
+                last_selected = selected_status[-1]
                 for s in STATUS_COLUMNS:
-                    edited_df.at[idx, s] = (s == last)
+                    edited_df.at[idx, s] = (s == last_selected)
 
+            # Determine final status
             final_status = ""
             for s in STATUS_COLUMNS:
                 if edited_df.at[idx, s]:
                     final_status = s
+                    break
 
+            # Update approval columns
             edited_df.at[idx, "APPROVAL_1"] = final_status
             edited_df.at[idx, "APPROVAL_2"] = final_status
 
-        cols_to_update = ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT"] + STATUS_COLUMNS
-        df.loc[df_ui.index, cols_to_update] = edited_df[cols_to_update].values
+        # Update main dataframe
+        update_cols = ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT"] + STATUS_COLUMNS
+        df.loc[df_ui.index, update_cols] = edited_df[update_cols].values
 
+        # Upload
         upload_excel_to_github(df)
-        time.sleep(2)
+        time.sleep(3)
         upload_excel_to_drive(df)
 
         st.cache_data.clear()
         st.session_state.df = df.copy()
-
         st.success("✅ Saved Successfully")
 
     except Exception as e:
