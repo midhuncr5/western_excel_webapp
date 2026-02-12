@@ -3644,7 +3644,6 @@
 # st.info("ℹ GitHub is working copy. Google Drive is final synced file.")
 
 
-
 import io
 import json
 import base64
@@ -3854,6 +3853,23 @@ for col in STATUS_COLUMNS:
     st.session_state.edited_df[col] = st.session_state.edited_df[col].astype(bool)
 
 # ---------------------------------------------------
+# REORDER → Place checkboxes after BASIC_AMOUNT
+# ---------------------------------------------------
+cols = list(st.session_state.edited_df.columns)
+
+if "BASIC_AMOUNT" in cols:
+    basic_index = cols.index("BASIC_AMOUNT")
+
+    for s in STATUS_COLUMNS:
+        if s in cols:
+            cols.remove(s)
+
+    for i, s in enumerate(STATUS_COLUMNS):
+        cols.insert(basic_index + 1 + i, s)
+
+    st.session_state.edited_df = st.session_state.edited_df[cols]
+
+# ---------------------------------------------------
 # SELECT ALL OPTIONS
 # ---------------------------------------------------
 st.subheader("📂 Pending Approvals")
@@ -3904,15 +3920,14 @@ if submit:
         edited_df = edited_df.copy()
         edited_df.index = df_ui.index
 
-        # Ensure only one checkbox per row
         for idx, row in edited_df.iterrows():
             selected = [s for s in STATUS_COLUMNS if row[s]]
+
             if len(selected) > 1:
                 last = selected[-1]
                 for s in STATUS_COLUMNS:
                     edited_df.at[idx, s] = (s == last)
 
-            # Reflect to approval columns
             final_status = ""
             for s in STATUS_COLUMNS:
                 if edited_df.at[idx, s]:
@@ -3957,6 +3972,10 @@ chart = alt.Chart(top_expenses).mark_bar().encode(
     color="CATEGORY:N",
     tooltip=["PROJECT_NAME", "CATEGORY", "FINAL AMOUNT"]
 ).properties(height=400)
+
+st.altair_chart(chart, use_container_width=True)
+
+st.info("ℹ GitHub is the working copy. Google Drive is the final synced file.")
 
 st.altair_chart(chart, use_container_width=True)
 
