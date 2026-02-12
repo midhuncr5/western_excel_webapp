@@ -3643,6 +3643,7 @@
 
 # st.info("ℹ GitHub is working copy. Google Drive is final synced file.")
 
+
 import io
 import json
 import base64
@@ -3662,8 +3663,7 @@ from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 st.set_page_config(
     page_title="GitHub Excel Approval System",
     page_icon="📝",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
 st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System</h1>", unsafe_allow_html=True)
@@ -3785,7 +3785,7 @@ if st.session_state.df is None:
 df = st.session_state.df.copy()
 
 # ---------------------------------------------------
-# FILTER UI
+# FILTER OUT FULLY REJECTED
 # ---------------------------------------------------
 df_ui = df[
     ~(
@@ -3795,7 +3795,7 @@ df_ui = df[
 ].copy()
 
 # ---------------------------------------------------
-# AUTO ADJUSTMENT LOGIC
+# AUTO ADJUSTMENT
 # ---------------------------------------------------
 df_ui["BASIC_AMOUNT"] = pd.to_numeric(df_ui["BASIC_AMOUNT"], errors="coerce").fillna(0)
 df_ui["ADJUSTMENT_AMOUNT"] = pd.to_numeric(df_ui["ADJUSTMENT_AMOUNT"], errors="coerce").fillna(0)
@@ -3809,22 +3809,28 @@ mask = (
 df_ui.loc[mask, "ADJUSTMENT_AMOUNT"] = df_ui.loc[mask, "BASIC_AMOUNT"]
 
 # ---------------------------------------------------
-# STATUS CHECKBOX COLUMNS (UI ONLY)
+# SAFE STATUS UI COLUMNS
 # ---------------------------------------------------
 status_cols = ["ACCEPTED", "PAID", "HOLD", "REJECTED"]
 
-for col in status_cols:
-    df_ui[col] = False
+df_ui = df_ui.loc[:, ~df_ui.columns.duplicated()].copy()
 
-# Insert after BASIC_AMOUNT
-cols = df_ui.columns.tolist()
-if "BASIC_AMOUNT" in cols:
-    idx = cols.index("BASIC_AMOUNT")
-    new_cols = cols[:idx+1] + status_cols + cols[idx+1:]
-    df_ui = df_ui[new_cols]
+for col in status_cols:
+    if col not in df_ui.columns:
+        df_ui[col] = False
+
+base_cols = [c for c in df_ui.columns if c not in status_cols]
+
+if "BASIC_AMOUNT" in base_cols:
+    idx = base_cols.index("BASIC_AMOUNT")
+    new_order = base_cols[:idx+1] + status_cols + base_cols[idx+1:]
+else:
+    new_order = base_cols + status_cols
+
+df_ui = df_ui[new_order]
 
 # ---------------------------------------------------
-# UNCHECK ALL BUTTON
+# UNCHECK ALL
 # ---------------------------------------------------
 if st.button("Uncheck All Rows"):
     for col in status_cols:
@@ -3867,7 +3873,6 @@ if submit:
     try:
         edited_df.index = df_ui.index
 
-        # Update editable fields
         editable_cols = [
             "BASIC_AMOUNT",
             "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"
@@ -3875,7 +3880,6 @@ if submit:
 
         df.loc[df_ui.index, editable_cols] = edited_df[editable_cols].values
 
-        # Write status to approval columns
         for i in df_ui.index:
             status = ""
             if edited_df.at[i, "ACCEPTED"]:
