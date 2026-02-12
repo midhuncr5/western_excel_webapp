@@ -3582,6 +3582,9 @@ with st.form("approval_form"):
 # ---------------------------------------------------
 # SAVE LOGIC
 # ---------------------------------------------------
+# ---------------------------------------------------
+# SAVE LOGIC
+# ---------------------------------------------------
 if submit:
     try:
         for idx, row in edited_df.iterrows():
@@ -3600,18 +3603,20 @@ if submit:
                 df.at[idx, "APPROVAL_1"] = ""
                 df.at[idx, "APPROVAL_2"] = ""
 
-        upload_excel_to_github(df)
+        # 🔥 REMOVE UI CHECKBOX COLUMNS BEFORE SAVING
+        df_to_save = df.drop(columns=status_cols, errors="ignore")
+
+        upload_excel_to_github(df_to_save)
         time.sleep(3)
-        upload_excel_to_drive(df)
+        upload_excel_to_drive(df_to_save)
 
         st.cache_data.clear()
-        st.session_state.df = df.copy()
+        st.session_state.df = df_to_save.copy()
 
-        st.success("✅ Saved Successfully (Both approvals updated)")
+        st.success("✅ Saved Successfully (No extra columns in Excel)")
 
     except Exception as e:
         st.error(f"❌ Save failed: {e}")
-
 # ---------------------------------------------------
 # SUMMARY CHART
 # ---------------------------------------------------
