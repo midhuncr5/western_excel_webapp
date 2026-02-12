@@ -3643,7 +3643,6 @@
 
 # st.info("ℹ GitHub is working copy. Google Drive is final synced file.")
 
-
 import io
 import json
 import base64
@@ -3850,19 +3849,20 @@ for s in STATUS_OPTIONS:
     if s not in st.session_state.edited_df.columns:
         st.session_state.edited_df[s] = False
 
-# ---------------------------------------------------
-# BULK APPROVAL BUTTONS
-# ---------------------------------------------------
-st.subheader("⚡ Bulk Approval - Set all rows to a STATUS")
-cols = st.columns(len(STATUS_OPTIONS))
-for i, status in enumerate(STATUS_OPTIONS):
-    if cols[i].button(f"Set All → {status}"):
-        for idx in st.session_state.edited_df.index:
-            for s in STATUS_OPTIONS:
-                st.session_state.edited_df.at[idx, s] = (s == status)
-            st.session_state.edited_df.at[idx, "APPROVAL_1"] = status
-            st.session_state.edited_df.at[idx, "APPROVAL_2"] = status
-        st.success(f"✅ All rows set to {status}")
+# -------------------- SEPARATE BULK APPROVAL --------------------
+st.write("---")
+st.subheader("⚡ Bulk Approval (Separate Section)")
+
+# Select status for bulk
+bulk_status = st.selectbox("Choose STATUS to apply to all rows:", STATUS_OPTIONS)
+
+if st.button("✅ Apply Bulk Approval to All Rows"):
+    for idx in st.session_state.edited_df.index:
+        for s in STATUS_OPTIONS:
+            st.session_state.edited_df.at[idx, s] = (s == bulk_status)
+        st.session_state.edited_df.at[idx, "APPROVAL_1"] = bulk_status
+        st.session_state.edited_df.at[idx, "APPROVAL_2"] = bulk_status
+    st.success(f"All rows updated to {bulk_status}")
 
 # ---------------------------------------------------
 # EDITOR FORM
@@ -3931,4 +3931,6 @@ chart = alt.Chart(top_expenses).mark_bar().encode(
 st.altair_chart(chart, use_container_width=True)
 
 st.info("ℹ GitHub is the working copy. Google Drive is the final synced file.")
+
+
 
