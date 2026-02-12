@@ -3662,7 +3662,8 @@ from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 st.set_page_config(
     page_title="GitHub Excel Approval System",
     page_icon="📝",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System</h1>", unsafe_allow_html=True)
@@ -3699,7 +3700,7 @@ SERVICE_ACCOUNT_JSON = st.secrets["SERVICE_ACCOUNT_JSON"]
 HEADERS = {"Authorization": f"token {GITHUB_TOKEN}"}
 
 # ---------------------------------------------------
-# GOOGLE DRIVE
+# GOOGLE DRIVE FUNCTIONS
 # ---------------------------------------------------
 def get_drive_service():
     creds = Credentials.from_service_account_info(
@@ -3724,7 +3725,6 @@ def download_excel_from_drive():
 
 def upload_excel_to_drive(df):
     service = get_drive_service()
-
     out = io.BytesIO()
     df.to_excel(out, index=False, engine="openpyxl")
     out.seek(0)
@@ -3738,7 +3738,7 @@ def upload_excel_to_drive(df):
     service.files().update(fileId=FILE_ID, media_body=media).execute()
 
 # ---------------------------------------------------
-# GITHUB
+# GITHUB FUNCTIONS
 # ---------------------------------------------------
 @st.cache_data(ttl=300)
 def download_excel_from_github():
@@ -3753,8 +3753,8 @@ def upload_excel_to_github(df):
     out = io.BytesIO()
     df.to_excel(out, index=False, engine="openpyxl")
     out.seek(0)
-
     content_b64 = base64.b64encode(out.read()).decode()
+
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
     sha = requests.get(url, headers=HEADERS).json()["sha"]
 
@@ -3771,7 +3771,7 @@ def upload_excel_to_github(df):
 # INITIAL LOAD
 # ---------------------------------------------------
 if st.session_state.df is None:
-    with st.spinner("🔄 Syncing Excel..."):
+    with st.spinner("🔄 Syncing Excel from Drive → GitHub..."):
         drive_df = download_excel_from_drive()
         upload_excel_to_github(drive_df)
         df = download_excel_from_github()
@@ -3785,102 +3785,77 @@ if st.session_state.df is None:
 df = st.session_state.df.copy()
 
 # ---------------------------------------------------
-# DISPLAY COLUMN ORDER
+# FILTER UI
 # ---------------------------------------------------
-DISPLAY_COLUMNS = [
-    "STATUS_MATCHED_ESTIMATION", "GST %", "TDS %",
-    "GST (Yes/No)", "TDS (Yes/No)",
-    "BENEFICIARY PAN", "BENEFICIARY GSTIN",
-    "BENEFICIARY ACCOUNT NO", "FINAL AMOUNT",
-    "PROJECT_NAME", "CATEGORY",
-    "FIXED_AMOUNT", "BALANCE_AMOUNT",
-    "ADJUSTMENT_AMOUNT", "BASIC_AMOUNT",
-    "BENEFICIARY NAME", "NARRATION",
-    "Remarks", "DATE",
-    "COST_CENTER", "LEDGER_NAME",
-    "LEDGER_UNDER", "TO", "BY"
-]
-
-for col in DISPLAY_COLUMNS:
-    if col not in df.columns:
-        df[col] = ""
-
-# Editable columns
-TEXT_COLS = ["COST_CENTER", "LEDGER_NAME", "LEDGER_UNDER", "TO", "BY", "BASIC_AMOUNT"]
-
-for col in TEXT_COLS:
-    df[col] = df[col].astype(str)
+df_ui = df[
+    ~(
+        (df["APPROVAL_1"].astype(str).str.upper() == "REJECTED") &
+        (df["APPROVAL_2"].astype(str).str.upper() == "REJECTED")
+    )
+].copy()
 
 # ---------------------------------------------------
-# STATUS CHECKBOX COLUMNS
+# AUTO ADJUSTMENT LOGIC
+# ---------------------------------------------------
+df_ui["BASIC_AMOUNT"] = pd.to_numeric(df_ui["BASIC_AMOUNT"], errors="coerce").fillna(0)
+df_ui["ADJUSTMENT_AMOUNT"] = pd.to_numeric(df_ui["ADJUSTMENT_AMOUNT"], errors="coerce").fillna(0)
+
+mask = (
+    (df_ui["STATUS_MATCHED_ESTIMATION"].fillna("").str.upper() == "ESTIMATION NOT MATCHED") &
+    (df_ui["BASIC_AMOUNT"] != 0) &
+    (df_ui["ADJUSTMENT_AMOUNT"] == 0)
+)
+
+df_ui.loc[mask, "ADJUSTMENT_AMOUNT"] = df_ui.loc[mask, "BASIC_AMOUNT"]
+
+# ---------------------------------------------------
+# STATUS CHECKBOX COLUMNS (UI ONLY)
 # ---------------------------------------------------
 status_cols = ["ACCEPTED", "PAID", "HOLD", "REJECTED"]
 
 for col in status_cols:
-    if col not in df.columns:
-        df[col] = False
+    df_ui[col] = False
 
-# Sync checkbox from approval
-for idx in df.index:
-    val = str(df.at[idx, "APPROVAL_1"]).strip().upper()
+# Insert after BASIC_AMOUNT
+cols = df_ui.columns.tolist()
+if "BASIC_AMOUNT" in cols:
+    idx = cols.index("BASIC_AMOUNT")
+    new_cols = cols[:idx+1] + status_cols + cols[idx+1:]
+    df_ui = df_ui[new_cols]
+
+# ---------------------------------------------------
+# UNCHECK ALL BUTTON
+# ---------------------------------------------------
+if st.button("Uncheck All Rows"):
     for col in status_cols:
-        df.at[idx, col] = (val == col)
+        df_ui[col] = False
+    st.rerun()
 
 # ---------------------------------------------------
-# FINAL COLUMN ORDER (STATUS AFTER BASIC_AMOUNT)
+# EDITOR
 # ---------------------------------------------------
-basic_index = DISPLAY_COLUMNS.index("BASIC_AMOUNT")
-
-final_columns = (
-    DISPLAY_COLUMNS[:basic_index + 1] +
-    status_cols +
-    DISPLAY_COLUMNS[basic_index + 1:]
-)
-
-df = df[final_columns]
-
-# ---------------------------------------------------
-# SELECT ALL
-# ---------------------------------------------------
-st.subheader("Select / Unselect All")
-
-c1, c2, c3, c4 = st.columns(4)
-
-select_all = {}
-select_all["ACCEPTED"] = c1.checkbox("All ACCEPTED")
-select_all["PAID"] = c2.checkbox("All PAID")
-select_all["HOLD"] = c3.checkbox("All HOLD")
-select_all["REJECTED"] = c4.checkbox("All REJECTED")
-
-for status in status_cols:
-    if select_all[status]:
-        for col in status_cols:
-            df[col] = False
-        df[status] = True
-        break
-
-# ---------------------------------------------------
-# DATA EDITOR
-# ---------------------------------------------------
-st.write("---")
-st.subheader("📂 Approvals")
+st.subheader("📂 Pending Approvals")
 
 with st.form("approval_form"):
 
     edited_df = st.data_editor(
-        df,
+        df_ui,
         hide_index=True,
         use_container_width=True,
+        disabled=[
+            c for c in df_ui.columns
+            if c not in status_cols + [
+                "BASIC_AMOUNT",
+                "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"
+            ]
+        ],
         column_config={
             "ACCEPTED": st.column_config.CheckboxColumn("ACCEPTED"),
             "PAID": st.column_config.CheckboxColumn("PAID"),
             "HOLD": st.column_config.CheckboxColumn("HOLD"),
             "REJECTED": st.column_config.CheckboxColumn("REJECTED"),
-        },
-        disabled=[
-            col for col in df.columns
-            if col not in TEXT_COLS + status_cols
-        ]
+            "BASIC_AMOUNT": st.column_config.NumberColumn("BASIC_AMOUNT", format="%.2f"),
+        }
     )
 
     submit = st.form_submit_button("💾 Save")
@@ -3890,39 +3865,63 @@ with st.form("approval_form"):
 # ---------------------------------------------------
 if submit:
     try:
-        for idx, row in edited_df.iterrows():
+        edited_df.index = df_ui.index
 
-            selected = [col for col in status_cols if row[col]]
+        # Update editable fields
+        editable_cols = [
+            "BASIC_AMOUNT",
+            "COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"
+        ]
 
-            if len(selected) > 1:
-                st.error(f"❌ Only ONE status allowed per row (Row {idx+1})")
-                st.stop()
+        df.loc[df_ui.index, editable_cols] = edited_df[editable_cols].values
 
-            # Update editable columns
-            for col in TEXT_COLS:
-                df.at[idx, col] = row[col]
+        # Write status to approval columns
+        for i in df_ui.index:
+            status = ""
+            if edited_df.at[i, "ACCEPTED"]:
+                status = "ACCEPTED"
+            elif edited_df.at[i, "PAID"]:
+                status = "PAID"
+            elif edited_df.at[i, "HOLD"]:
+                status = "HOLD"
+            elif edited_df.at[i, "REJECTED"]:
+                status = "REJECTED"
 
-            if len(selected) == 1:
-                status = selected[0]
-                df.at[idx, "APPROVAL_1"] = status
-                df.at[idx, "APPROVAL_2"] = status
-            else:
-                df.at[idx, "APPROVAL_1"] = ""
-                df.at[idx, "APPROVAL_2"] = ""
+            df.at[i, "APPROVAL_1"] = status
+            df.at[i, "APPROVAL_2"] = status
 
-        df_to_save = df.drop(columns=status_cols, errors="ignore")
+        upload_excel_to_github(df)
+        time.sleep(3)
+        upload_excel_to_drive(df)
 
-        upload_excel_to_github(df_to_save)
-        time.sleep(2)
-        upload_excel_to_drive(df_to_save)
-
-        st.session_state.df = df_to_save.copy()
-        st.cache_data.clear()
-
+        st.session_state.df = df.copy()
         st.success("✅ Saved Successfully")
 
     except Exception as e:
         st.error(f"❌ Save failed: {e}")
 
+# ---------------------------------------------------
+# SUMMARY
+# ---------------------------------------------------
+st.write("---")
+st.subheader("💼 Project-wise Highest Expense")
 
+expense_df = df.copy()
+expense_df["FINAL AMOUNT"] = pd.to_numeric(expense_df["FINAL AMOUNT"], errors="coerce").fillna(0)
+expense_df["PROJECT_NAME"] = expense_df["PROJECT_NAME"].astype(str).str.upper().str.strip()
 
+grp = expense_df.groupby(["PROJECT_NAME", "CATEGORY"])["FINAL AMOUNT"].sum().reset_index()
+top_expenses = grp.sort_values("FINAL AMOUNT", ascending=False).groupby("PROJECT_NAME").head(1)
+
+st.dataframe(top_expenses, use_container_width=True)
+
+chart = alt.Chart(top_expenses).mark_bar().encode(
+    x="PROJECT_NAME:N",
+    y="FINAL AMOUNT:Q",
+    color="CATEGORY:N",
+    tooltip=["PROJECT_NAME", "CATEGORY", "FINAL AMOUNT"]
+).properties(height=400)
+
+st.altair_chart(chart, use_container_width=True)
+
+st.info("ℹ GitHub is the working copy. Google Drive is the final synced file.")
