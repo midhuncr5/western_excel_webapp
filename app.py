@@ -3642,6 +3642,11 @@
 # st.altair_chart(chart, use_container_width=True)
 
 # st.info("ℹ GitHub is working copy. Google Drive is final synced file.")
+
+
+
+
+
 import io
 import json
 import base64
@@ -3811,11 +3816,10 @@ mask = (
 df_ui.loc[mask, "ADJUSTMENT_AMOUNT"] = df_ui.loc[mask, "BASIC_AMOUNT"]
 
 # ---------------------------------------------------
-# DATE FIX (No ###### issue)
+# KEEP DATE EXACTLY AS IN EXCEL (NO FORMAT CHANGE)
 # ---------------------------------------------------
 if "DATE" in df_ui.columns:
-    df_ui["DATE"] = pd.to_datetime(df_ui["DATE"], errors="coerce")
-    df_ui["DATE"] = df_ui["DATE"].dt.strftime("%d-%m-%Y")
+    df_ui["DATE"] = df_ui["DATE"].astype(str)
 
 # ---------------------------------------------------
 # STATUS CHECKBOX SETUP
@@ -3940,3 +3944,6 @@ chart = alt.Chart(top_expenses).mark_bar().encode(
 st.altair_chart(chart, use_container_width=True)
 
 st.info("ℹ GitHub is the working copy. Google Drive is the final synced file.")
+
+
+
