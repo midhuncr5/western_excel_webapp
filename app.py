@@ -3506,7 +3506,6 @@ if st.session_state.df is None:
         upload_excel_to_github(drive_df)
         df = download_excel_from_github()
 
-        # Ensure approval columns exist
         for col in ["APPROVAL_1", "APPROVAL_2"]:
             if col not in df.columns:
                 df[col] = ""
@@ -3516,7 +3515,7 @@ if st.session_state.df is None:
 df = st.session_state.df.copy()
 
 # ---------------------------------------------------
-# CREATE CHECKBOX UI COLUMNS
+# STATUS CHECKBOX COLUMNS
 # ---------------------------------------------------
 status_cols = ["ACCEPTED", "PAID", "HOLD", "REJECTED"]
 
@@ -3524,30 +3523,39 @@ for col in status_cols:
     if col not in df.columns:
         df[col] = False
 
-# Sync checkbox with approval columns
+# Sync checkboxes from APPROVAL_1
 for idx in df.index:
     val = str(df.at[idx, "APPROVAL_1"]).strip().upper()
     for col in status_cols:
         df.at[idx, col] = (val == col)
 
 # ---------------------------------------------------
-# BULK APPLY
+# SELECT / UNSELECT ALL (COLUMN LEVEL)
 # ---------------------------------------------------
-st.subheader("Bulk Status Update")
+st.subheader("Select / Unselect All")
 
-col1, col2 = st.columns(2)
+c1, c2, c3, c4 = st.columns(4)
 
-with col1:
-    bulk_status = st.selectbox("Select Status", status_cols)
+select_all = {}
 
-with col2:
-    apply_all = st.button("Apply to All Rows")
+with c1:
+    select_all["ACCEPTED"] = st.checkbox("All ACCEPTED")
 
-if apply_all:
-    for col in status_cols:
-        df[col] = False
-    df[bulk_status] = True
-    st.success(f"{bulk_status} applied to all rows")
+with c2:
+    select_all["PAID"] = st.checkbox("All PAID")
+
+with c3:
+    select_all["HOLD"] = st.checkbox("All HOLD")
+
+with c4:
+    select_all["REJECTED"] = st.checkbox("All REJECTED")
+
+for status in status_cols:
+    if select_all[status]:
+        for col in status_cols:
+            df[col] = False
+        df[status] = True
+        break
 
 # ---------------------------------------------------
 # DATA EDITOR
@@ -3629,8 +3637,6 @@ chart = alt.Chart(top_expenses).mark_bar().encode(
 st.altair_chart(chart, use_container_width=True)
 
 st.info("ℹ GitHub is working copy. Google Drive is final synced file.")
-
-
 
 
 
