@@ -3644,7 +3644,6 @@
 # st.info("ℹ GitHub is working copy. Google Drive is final synced file.")
 
 
-
 import io
 import json
 import base64
@@ -3877,6 +3876,7 @@ st.subheader("📂 Pending Approvals")
 st.markdown("### 🔘 Select All Options")
 
 col1, col2, col3, col4 = st.columns(4)
+
 select_all = {}
 with col1:
     select_all["ACCEPTED"] = st.checkbox("Select All ACCEPTED")
@@ -3887,7 +3887,6 @@ with col3:
 with col4:
     select_all["REJECTED"] = st.checkbox("Select All REJECTED")
 
-# Apply select all
 for status, value in select_all.items():
     if value:
         st.session_state.edited_df[STATUS_COLUMNS] = False
@@ -3902,13 +3901,19 @@ with st.form("approval_form"):
         key="editor",
         hide_index=True,
         use_container_width=True,
-        column_config={s: st.column_config.CheckboxColumn(s) for s in STATUS_COLUMNS}
+        column_config={
+            "ACCEPTED": st.column_config.CheckboxColumn("ACCEPTED"),
+            "PAID": st.column_config.CheckboxColumn("PAID"),
+            "HOLD": st.column_config.CheckboxColumn("HOLD"),
+            "REJECTED": st.column_config.CheckboxColumn("REJECTED"),
+            "BASIC_AMOUNT": st.column_config.NumberColumn("BASIC_AMOUNT", format="%.2f"),
+        }
     )
 
     submit = st.form_submit_button("💾 Save")
 
 # ---------------------------------------------------
-# SAVE LOGIC (SINGLE ROW SELECTION ENFORCED)
+# SAVE LOGIC
 # ---------------------------------------------------
 if submit:
     try:
@@ -3916,36 +3921,31 @@ if submit:
         edited_df.index = df_ui.index
 
         for idx, row in edited_df.iterrows():
-            selected_status = [s for s in STATUS_COLUMNS if row[s]]
+            selected = [s for s in STATUS_COLUMNS if row[s]]
 
-            # Keep only one checkbox per row
-            if len(selected_status) > 1:
-                last_selected = selected_status[-1]
+            if len(selected) > 1:
+                last = selected[-1]
                 for s in STATUS_COLUMNS:
-                    edited_df.at[idx, s] = (s == last_selected)
+                    edited_df.at[idx, s] = (s == last)
 
-            # Determine final status
             final_status = ""
             for s in STATUS_COLUMNS:
                 if edited_df.at[idx, s]:
                     final_status = s
-                    break
 
-            # Update approval columns
             edited_df.at[idx, "APPROVAL_1"] = final_status
             edited_df.at[idx, "APPROVAL_2"] = final_status
 
-        # Update main dataframe
-        update_cols = ["APPROVAL_1", "APPROVAL_2", "BASIC_AMOUNT"] + STATUS_COLUMNS
-        df.loc[df_ui.index, update_cols] = edited_df[update_cols].values
+        cols = ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT"] + STATUS_COLUMNS
+        df.loc[df_ui.index, cols] = edited_df[cols].values
 
-        # Upload
         upload_excel_to_github(df)
         time.sleep(3)
         upload_excel_to_drive(df)
 
         st.cache_data.clear()
         st.session_state.df = df.copy()
+
         st.success("✅ Saved Successfully")
 
     except Exception as e:
