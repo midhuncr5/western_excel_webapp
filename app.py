@@ -3840,35 +3840,41 @@ if st.session_state.edited_df is None:
     st.session_state.edited_df = df_ui.copy()
 
 # ---------------------------------------------------
-# RADIO BUTTON STATUS SETUP
+# STATUS OPTIONS
 # ---------------------------------------------------
 STATUS_OPTIONS = ["ACCEPTED", "PAID", "HOLD", "REJECTED"]
 
-# Create STATUS column based on existing approvals
-st.session_state.edited_df["STATUS"] = st.session_state.edited_df.apply(
-    lambda row: next((s for s in STATUS_OPTIONS if row.get(s, False)), ""), axis=1
-)
-
-# Remove old checkbox columns for the editor
-editor_df = st.session_state.edited_df.drop(columns=STATUS_OPTIONS)
+# Ensure checkbox columns exist
+for s in STATUS_OPTIONS:
+    if s not in st.session_state.edited_df.columns:
+        st.session_state.edited_df[s] = False
 
 # ---------------------------------------------------
-# EDITOR
+# SELECT ALL CHECKBOXES PER COLUMN
+# ---------------------------------------------------
+st.subheader("⚡ Select All Checkboxes for STATUS Columns")
+cols = st.columns(len(STATUS_OPTIONS))
+for i, status in enumerate(STATUS_OPTIONS):
+    if cols[i].button(f"Select All → {status}"):
+        st.session_state.edited_df[status] = True
+        st.success(f"✅ All rows selected for {status}")
+
+# ---------------------------------------------------
+# EDITOR FORM
 # ---------------------------------------------------
 with st.form("approval_form"):
+    editor_df = st.session_state.edited_df.copy()
+    
     edited_df = st.data_editor(
         editor_df,
         key="editor",
         hide_index=True,
         use_container_width=True,
         column_config={
-            "STATUS": st.column_config.SelectboxColumn(
-                "STATUS",
-                options=STATUS_OPTIONS
-            ),
             "BASIC_AMOUNT": st.column_config.NumberColumn("BASIC_AMOUNT", format="%.2f"),
         }
     )
+    
     submit = st.form_submit_button("💾 Save")
 
 # ---------------------------------------------------
@@ -3876,17 +3882,19 @@ with st.form("approval_form"):
 # ---------------------------------------------------
 if submit:
     for idx, row in edited_df.iterrows():
-        selected = row["STATUS"]
-        # Update original checkbox columns and approvals
+        # Update original checkbox columns
         for s in STATUS_OPTIONS:
-            st.session_state.edited_df.at[idx, s] = (s == selected)
-        st.session_state.edited_df.at[idx, "APPROVAL_1"] = selected
-        st.session_state.edited_df.at[idx, "APPROVAL_2"] = selected
+            st.session_state.edited_df.at[idx, s] = row.get(s, False)
+        # Set APPROVAL_1 & APPROVAL_2 based on selected checkbox
+        selected_status = next((s for s in STATUS_OPTIONS if row.get(s, False)), "")
+        st.session_state.edited_df.at[idx, "APPROVAL_1"] = selected_status
+        st.session_state.edited_df.at[idx, "APPROVAL_2"] = selected_status
 
-    # Update the main dataframe
-    cols = ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT"] + STATUS_OPTIONS
-    df.loc[df_ui.index, cols] = st.session_state.edited_df[cols].values
+    # Update main df
+    cols_to_update = ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT"] + STATUS_OPTIONS
+    df.loc[df_ui.index, cols_to_update] = st.session_state.edited_df[cols_to_update].values
 
+    # Upload changes
     upload_excel_to_github(df)
     time.sleep(3)
     upload_excel_to_drive(df)
@@ -3916,6 +3924,10 @@ chart = alt.Chart(top_expenses).mark_bar().encode(
     color="CATEGORY:N",
     tooltip=["PROJECT_NAME", "CATEGORY", "FINAL AMOUNT"]
 ).properties(height=400)
+
+st.altair_chart(chart, use_container_width=True)
+
+st.info("ℹ GitHub is the working copy. Google Drive is the final synced file.")
 
 st.altair_chart(chart, use_container_width=True)
 
