@@ -3643,7 +3643,6 @@
 
 # st.info("ℹ GitHub is working copy. Google Drive is final synced file.")
 
-
 import io
 import json
 import base64
@@ -3667,7 +3666,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System, </h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System</h1>", unsafe_allow_html=True)
 st.write("---")
 
 # ---------------------------------------------------
@@ -3841,71 +3840,115 @@ if st.session_state.edited_df is None:
     st.session_state.edited_df = df_ui.copy()
 
 # ---------------------------------------------------
-# STATUS OPTIONS
+# ADD STATUS CHECKBOX COLUMNS
 # ---------------------------------------------------
-STATUS_OPTIONS = ["ACCEPTED", "PAID", "HOLD", "REJECTED"]
+STATUS_COLUMNS = ["ACCEPTED", "PAID", "HOLD", "REJECTED"]
 
-# Ensure checkbox columns exist
-for s in STATUS_OPTIONS:
-    if s not in st.session_state.edited_df.columns:
-        st.session_state.edited_df[s] = False
+for col in STATUS_COLUMNS:
+    if col not in st.session_state.edited_df.columns:
+        st.session_state.edited_df[col] = False
 
-# -------------------- SEPARATE BULK APPROVAL --------------------
-st.write("---")
-st.subheader("⚡ Bulk Approval (Separate Section)")
-
-# Select status for bulk
-bulk_status = st.selectbox("Choose STATUS to apply to all rows:", STATUS_OPTIONS)
-
-if st.button("✅ Apply Bulk Approval to All Rows"):
-    for idx in st.session_state.edited_df.index:
-        for s in STATUS_OPTIONS:
-            st.session_state.edited_df.at[idx, s] = (s == bulk_status)
-        st.session_state.edited_df.at[idx, "APPROVAL_1"] = bulk_status
-        st.session_state.edited_df.at[idx, "APPROVAL_2"] = bulk_status
-    st.success(f"All rows updated to {bulk_status}")
+for col in STATUS_COLUMNS:
+    st.session_state.edited_df[col] = st.session_state.edited_df[col].astype(bool)
 
 # ---------------------------------------------------
-# EDITOR FORM
+# REORDER → Place checkboxes after BASIC_AMOUNT
+# ---------------------------------------------------
+cols = list(st.session_state.edited_df.columns)
+
+if "BASIC_AMOUNT" in cols:
+    basic_index = cols.index("BASIC_AMOUNT")
+
+    for s in STATUS_COLUMNS:
+        if s in cols:
+            cols.remove(s)
+
+    for i, s in enumerate(STATUS_COLUMNS):
+        cols.insert(basic_index + 1 + i, s)
+
+    st.session_state.edited_df = st.session_state.edited_df[cols]
+
+# ---------------------------------------------------
+# SELECT ALL OPTIONS
+# ---------------------------------------------------
+st.subheader("📂 Pending Approvals")
+st.markdown("### 🔘 Select All Options")
+
+col1, col2, col3, col4 = st.columns(4)
+
+select_all = {}
+with col1:
+    select_all["ACCEPTED"] = st.checkbox("Select All ACCEPTED")
+with col2:
+    select_all["PAID"] = st.checkbox("Select All PAID")
+with col3:
+    select_all["HOLD"] = st.checkbox("Select All HOLD")
+with col4:
+    select_all["REJECTED"] = st.checkbox("Select All REJECTED")
+
+for status, value in select_all.items():
+    if value:
+        st.session_state.edited_df[STATUS_COLUMNS] = False
+        st.session_state.edited_df[status] = True
+
+# ---------------------------------------------------
+# EDITOR
 # ---------------------------------------------------
 with st.form("approval_form"):
     edited_df = st.data_editor(
-        st.session_state.edited_df.copy(),
+        st.session_state.edited_df,
         key="editor",
         hide_index=True,
         use_container_width=True,
         column_config={
+            "ACCEPTED": st.column_config.CheckboxColumn("ACCEPTED"),
+            "PAID": st.column_config.CheckboxColumn("PAID"),
+            "HOLD": st.column_config.CheckboxColumn("HOLD"),
+            "REJECTED": st.column_config.CheckboxColumn("REJECTED"),
             "BASIC_AMOUNT": st.column_config.NumberColumn("BASIC_AMOUNT", format="%.2f"),
         }
     )
-    
+
     submit = st.form_submit_button("💾 Save")
 
 # ---------------------------------------------------
 # SAVE LOGIC
 # ---------------------------------------------------
 if submit:
-    for idx, row in edited_df.iterrows():
-        # Update checkbox columns
-        for s in STATUS_OPTIONS:
-            st.session_state.edited_df.at[idx, s] = row.get(s, False)
-        # Set APPROVAL_1 & APPROVAL_2 based on selected checkbox
-        selected_status = next((s for s in STATUS_OPTIONS if row.get(s, False)), "")
-        st.session_state.edited_df.at[idx, "APPROVAL_1"] = selected_status
-        st.session_state.edited_df.at[idx, "APPROVAL_2"] = selected_status
+    try:
+        edited_df = edited_df.copy()
+        edited_df.index = df_ui.index
 
-    # Update main df
-    cols_to_update = ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT"] + STATUS_OPTIONS
-    df.loc[df_ui.index, cols_to_update] = st.session_state.edited_df[cols_to_update].values
+        for idx, row in edited_df.iterrows():
+            selected = [s for s in STATUS_COLUMNS if row[s]]
 
-    # Upload changes
-    upload_excel_to_github(df)
-    time.sleep(3)
-    upload_excel_to_drive(df)
+            if len(selected) > 1:
+                last = selected[-1]
+                for s in STATUS_COLUMNS:
+                    edited_df.at[idx, s] = (s == last)
 
-    st.cache_data.clear()
-    st.session_state.df = df.copy()
-    st.success("✅ Saved Successfully")
+            final_status = ""
+            for s in STATUS_COLUMNS:
+                if edited_df.at[idx, s]:
+                    final_status = s
+
+            edited_df.at[idx, "APPROVAL_1"] = final_status
+            edited_df.at[idx, "APPROVAL_2"] = final_status
+
+        cols = ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT"] + STATUS_COLUMNS
+        df.loc[df_ui.index, cols] = edited_df[cols].values
+
+        upload_excel_to_github(df)
+        time.sleep(3)
+        upload_excel_to_drive(df)
+
+        st.cache_data.clear()
+        st.session_state.df = df.copy()
+
+        st.success("✅ Saved Successfully")
+
+    except Exception as e:
+        st.error(f"❌ Save failed: {e}")
 
 # ---------------------------------------------------
 # PROJECT SUMMARY
