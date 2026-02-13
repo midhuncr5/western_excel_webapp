@@ -299,6 +299,7 @@ chart = alt.Chart(top_expenses).mark_bar().encode(
     tooltip=["PROJECT_NAME", "CATEGORY", "FINAL AMOUNT"]
 ).properties(height=400)
 
+
 st.altair_chart(chart, use_container_width=True)
 
 st.info("ℹ GitHub is the working copy. Google Drive is the final synced file.")
