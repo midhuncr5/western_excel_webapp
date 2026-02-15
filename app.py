@@ -21,7 +21,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System.</h1>", unsafe_allow_html=True)
 st.write("---")
 
 # ---------------------------------------------------
@@ -217,6 +217,32 @@ with st.form("approval_form"):
 # ---------------------------------------------------
 # SAVE LOGIC (ONLY UPDATE APPROVAL_1 & APPROVAL_2)
 # ---------------------------------------------------
+# if submit:
+#     try:
+#         edited_df.index = df_ui.index
+
+#         for idx, row in edited_df.iterrows():
+#             selected = [s for s in STATUS_COLUMNS if row[s]]
+#             final_status = selected[-1] if selected else ""
+#             df.at[idx, "APPROVAL_1"] = final_status
+#             df.at[idx, "APPROVAL_2"] = final_status
+#             df.at[idx, "BASIC_AMOUNT"] = row["BASIC_AMOUNT"]
+
+#         upload_excel_to_github(df)
+#         time.sleep(2)
+#         upload_excel_to_drive(df)
+
+#         st.session_state.df = df.copy()
+#         st.cache_data.clear()
+
+#         st.success("✅ Saved Successfully")
+
+#     except Exception as e:
+#         st.error(f"❌ Save failed: {e}")
+
+# ---------------------------------------------------
+# SAVE LOGIC (ONLY UPDATE APPROVAL_1 & APPROVAL_2)
+# ---------------------------------------------------
 if submit:
     try:
         edited_df.index = df_ui.index
@@ -224,21 +250,26 @@ if submit:
         for idx, row in edited_df.iterrows():
             selected = [s for s in STATUS_COLUMNS if row[s]]
             final_status = selected[-1] if selected else ""
+
             df.at[idx, "APPROVAL_1"] = final_status
             df.at[idx, "APPROVAL_2"] = final_status
             df.at[idx, "BASIC_AMOUNT"] = row["BASIC_AMOUNT"]
 
-        upload_excel_to_github(df)
-        time.sleep(2)
-        upload_excel_to_drive(df)
+        # 🔥 REMOVE UI-ONLY COLUMNS BEFORE SAVE
+        df_clean = df.drop(columns=STATUS_COLUMNS, errors="ignore")
 
-        st.session_state.df = df.copy()
+        upload_excel_to_github(df_clean)
+        time.sleep(2)
+        upload_excel_to_drive(df_clean)
+
+        st.session_state.df = df_clean.copy()
         st.cache_data.clear()
 
         st.success("✅ Saved Successfully")
 
     except Exception as e:
         st.error(f"❌ Save failed: {e}")
+
 
 # ---------------------------------------------------
 # PROJECT SUMMARY
