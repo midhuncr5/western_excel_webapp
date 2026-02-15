@@ -21,7 +21,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System.</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,</h1>", unsafe_allow_html=True)
 st.write("---")
 
 # ---------------------------------------------------
@@ -135,7 +135,7 @@ if st.session_state.df is None:
 df = st.session_state.df.copy()
 
 # ---------------------------------------------------
-# FILTER UI
+# FILTER OUT FULLY REJECTED
 # ---------------------------------------------------
 df_ui = df[
     ~(
@@ -145,7 +145,7 @@ df_ui = df[
 ].copy()
 
 # ---------------------------------------------------
-# DISPLAY COLUMNS
+# DISPLAY COLUMNS (WITHOUT APPROVAL_1 & APPROVAL_2)
 # ---------------------------------------------------
 DISPLAY_COLUMNS = [
     "STATUS_MATCHED_ESTIMATION", "GST %", "TDS %",
@@ -155,79 +155,52 @@ DISPLAY_COLUMNS = [
     "PROJECT_NAME", "CATEGORY",
     "FIXED_AMOUNT", "BALANCE_AMOUNT",
     "ADJUSTMENT_AMOUNT", "BASIC_AMOUNT",
-    "APPROVAL_1", "APPROVAL_2",
     "BENEFICIARY NAME", "NARRATION",
-    "Remarks", "DATE","COST_CENTER","LEDGER_NAME","LEDGER_UNDER","TO","BY"
+    "Remarks", "DATE","COST_CENTER",
+    "LEDGER_NAME","LEDGER_UNDER","TO","BY"
 ]
 
 df_ui = df_ui[DISPLAY_COLUMNS]
 
 # ---------------------------------------------------
-# AUTO ADJUSTMENT
-# ---------------------------------------------------
-df_ui["BASIC_AMOUNT"] = pd.to_numeric(df_ui["BASIC_AMOUNT"], errors="coerce").fillna(0)
-df_ui["ADJUSTMENT_AMOUNT"] = pd.to_numeric(df_ui["ADJUSTMENT_AMOUNT"], errors="coerce").fillna(0)
-
-mask = (
-    (df_ui["STATUS_MATCHED_ESTIMATION"].fillna("").str.upper() == "ESTIMATION NOT MATCHED") &
-    (df_ui["BASIC_AMOUNT"] != 0) & 
-    (df_ui["ADJUSTMENT_AMOUNT"] == 0)
-)
-
-df_ui.loc[mask, "ADJUSTMENT_AMOUNT"] = df_ui.loc[mask, "BASIC_AMOUNT"]
-
-if st.session_state.edited_df is None:
-    st.session_state.edited_df = df_ui.copy()
-
-# ---------------------------------------------------
-# ADD STATUS CHECKBOX COLUMNS
+# ADD UI STATUS CHECKBOXES (UI ONLY)
 # ---------------------------------------------------
 STATUS_COLUMNS = ["ACCEPTED", "PAID", "HOLD", "REJECTED"]
 
 for col in STATUS_COLUMNS:
-    if col not in st.session_state.edited_df.columns:
-        st.session_state.edited_df[col] = False
-st.session_state.edited_df[STATUS_COLUMNS] = st.session_state.edited_df[STATUS_COLUMNS].astype(bool)
+    df_ui[col] = False
+
+# Move checkboxes after BASIC_AMOUNT
+cols = list(df_ui.columns)
+basic_index = cols.index("BASIC_AMOUNT")
+for s in STATUS_COLUMNS:
+    cols.remove(s)
+for i, s in enumerate(STATUS_COLUMNS):
+    cols.insert(basic_index + 1 + i, s)
+
+df_ui = df_ui[cols]
 
 # ---------------------------------------------------
-# REORDER → Place checkboxes after BASIC_AMOUNT
-# ---------------------------------------------------
-cols = list(st.session_state.edited_df.columns)
-if "BASIC_AMOUNT" in cols:
-    basic_index = cols.index("BASIC_AMOUNT")
-    for s in STATUS_COLUMNS:
-        if s in cols:
-            cols.remove(s)
-    for i, s in enumerate(STATUS_COLUMNS):
-        cols.insert(basic_index + 1 + i, s)
-    st.session_state.edited_df = st.session_state.edited_df[cols]
-
-# ---------------------------------------------------
-# RADIO BUTTONS → Select All for Status
+# RADIO SELECT ALL
 # ---------------------------------------------------
 st.subheader("📂 Pending Approvals")
-st.markdown("### 🔘 Select Overall Status for All Rows")
 
 selected_status = st.radio(
     "Select one status for all rows:",
-    options=["None"] + STATUS_COLUMNS,  # "None" keeps all as-is
-    index=0,
+    options=["None"] + STATUS_COLUMNS,
     horizontal=True
 )
 
 if selected_status != "None":
-    # Reset all status columns first
-    st.session_state.edited_df[STATUS_COLUMNS] = False
-    # Set the selected status column to True
-    st.session_state.edited_df[selected_status] = True
+    df_ui[STATUS_COLUMNS] = False
+    df_ui[selected_status] = True
 
 # ---------------------------------------------------
-# EDITOR
+# DATA EDITOR
 # ---------------------------------------------------
 with st.form("approval_form"):
     edited_df = st.data_editor(
-        st.session_state.edited_df,
-        key="editor",
+        df_ui,
         hide_index=True,
         use_container_width=True,
         column_config={
@@ -242,35 +215,25 @@ with st.form("approval_form"):
     submit = st.form_submit_button("💾 Save")
 
 # ---------------------------------------------------
-# SAVE LOGIC
+# SAVE LOGIC (ONLY UPDATE APPROVAL_1 & APPROVAL_2)
 # ---------------------------------------------------
 if submit:
     try:
-        edited_df = edited_df.copy()
         edited_df.index = df_ui.index
 
         for idx, row in edited_df.iterrows():
             selected = [s for s in STATUS_COLUMNS if row[s]]
-            if len(selected) > 1:
-                last = selected[-1]
-                for s in STATUS_COLUMNS:
-                    edited_df.at[idx, s] = (s == last)
-            final_status = ""
-            for s in STATUS_COLUMNS:
-                if edited_df.at[idx, s]:
-                    final_status = s
-            edited_df.at[idx, "APPROVAL_1"] = final_status
-            edited_df.at[idx, "APPROVAL_2"] = final_status
-
-        cols = ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT"] 
-        df.loc[df_ui.index, cols] = edited_df[cols].values
+            final_status = selected[-1] if selected else ""
+            df.at[idx, "APPROVAL_1"] = final_status
+            df.at[idx, "APPROVAL_2"] = final_status
+            df.at[idx, "BASIC_AMOUNT"] = row["BASIC_AMOUNT"]
 
         upload_excel_to_github(df)
-        time.sleep(3)
+        time.sleep(2)
         upload_excel_to_drive(df)
 
-        st.cache_data.clear()
         st.session_state.df = df.copy()
+        st.cache_data.clear()
 
         st.success("✅ Saved Successfully")
 
@@ -298,7 +261,6 @@ chart = alt.Chart(top_expenses).mark_bar().encode(
     color="CATEGORY:N",
     tooltip=["PROJECT_NAME", "CATEGORY", "FINAL AMOUNT"]
 ).properties(height=400)
-
 
 st.altair_chart(chart, use_container_width=True)
 
