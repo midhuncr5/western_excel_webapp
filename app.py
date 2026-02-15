@@ -262,7 +262,7 @@ if submit:
             edited_df.at[idx, "APPROVAL_1"] = final_status
             edited_df.at[idx, "APPROVAL_2"] = final_status
 
-        cols = ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT"] + STATUS_COLUMNS
+        cols = ["APPROVAL_1","APPROVAL_2","BASIC_AMOUNT"] 
         df.loc[df_ui.index, cols] = edited_df[cols].values
 
         upload_excel_to_github(df)
