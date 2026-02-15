@@ -321,7 +321,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System.</h1>", unsafe_allow_html=True)
 st.write("---")
 
 # ---------------------------------------------------
@@ -338,6 +338,7 @@ required_secrets = [
     "GITHUB_REPO",
     "GITHUB_FILE_PATH",
     "FILE_ID",
+    "SHEET_FILE_ID",
     "SERVICE_ACCOUNT_JSON"
 ]
 
@@ -350,6 +351,7 @@ GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 GITHUB_REPO = st.secrets["GITHUB_REPO"]
 GITHUB_FILE_PATH = st.secrets["GITHUB_FILE_PATH"]
 FILE_ID = st.secrets["FILE_ID"]
+SHEET_FILE_ID = st.secrets["SHEET_FILE_ID"]     # Monthly Summary Sheet
 SERVICE_ACCOUNT_JSON = st.secrets["SERVICE_ACCOUNT_JSON"]
 
 HEADERS = {"Authorization": f"token {GITHUB_TOKEN}"}
@@ -386,6 +388,31 @@ def upload_excel_to_drive(df):
         resumable=True
     )
     service.files().update(fileId=FILE_ID, media_body=media).execute()
+
+
+
+# ---------------------------------------------------
+# DOWNLOAD MONTHLY GOOGLE SHEET
+# ---------------------------------------------------
+def download_monthly_sheet():
+    service = get_drive_service()
+
+    # Export Google Sheet as Excel
+    request = service.files().export_media(
+        fileId=SHEET_FILE_ID,
+        mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+    fh = io.BytesIO()
+    downloader = MediaIoBaseDownload(fh, request)
+
+    done = False
+    while not done:
+        _, done = downloader.next_chunk()
+
+    fh.seek(0)
+    return pd.read_excel(fh, engine="openpyxl")
+
 
 # ---------------------------------------------------
 # GITHUB FUNCTIONS
@@ -620,29 +647,16 @@ st.write("---")
 st.subheader("📅 Current Month Expense Summary")
 
 try:
-    expense_df = df.copy()
+    expense_df = download_monthly_sheet()
 
-    # ----------------------------
-    # CLEAN COLUMN NAMES
-    # ----------------------------
     expense_df.columns = expense_df.columns.str.strip()
 
-    # ----------------------------
-    # FIX DATE COLUMN (HANDLE MIXED FORMATS)
-    # ----------------------------
     expense_df["DATE"] = pd.to_datetime(
         expense_df["DATE"],
         errors="coerce",
-        dayfirst=True,
-        infer_datetime_format=True
-    )
+        dayfirst=True
+    ).dt.date
 
-    # REMOVE TIME PART (00:00:00)
-    expense_df["DATE"] = expense_df["DATE"].dt.date
-
-    # ----------------------------
-    # FIX FINAL AMOUNT
-    # ----------------------------
     expense_df["FINAL AMOUNT"] = (
         expense_df["FINAL AMOUNT"]
         .astype(str)
@@ -656,20 +670,11 @@ try:
         errors="coerce"
     ).fillna(0)
 
-    # ----------------------------
-    # GET CURRENT MONTH RANGE
-    # ----------------------------
     today = pd.Timestamp.today().date()
     start_date = today.replace(day=1)
-
-    # End of month
-    import calendar
     last_day = calendar.monthrange(today.year, today.month)[1]
     end_date = today.replace(day=last_day)
 
-    # ----------------------------
-    # FILTER CURRENT MONTH
-    # ----------------------------
     current_month_df = expense_df[
         (expense_df["DATE"] >= start_date) &
         (expense_df["DATE"] <= end_date)
@@ -711,3 +716,5 @@ try:
 
 except Exception as e:
     st.error(f"Error generating summary: {e}")
+
+
