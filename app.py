@@ -321,7 +321,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System.</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System,</h1>", unsafe_allow_html=True)
 st.write("---")
 
 # ---------------------------------------------------
@@ -612,34 +612,37 @@ if submit:
 # CURRENT MONTH EXPENSE SUMMARY
 # ---------------------------------------------------
 
-import streamlit as st
-import pandas as pd
-import altair as alt
+# ---------------------------------------------------
+# CURRENT MONTH EXPENSE SUMMARY (FINAL FIXED)
+# ---------------------------------------------------
 
 st.write("---")
 st.subheader("📅 Current Month Expense Summary")
 
 try:
-    # Make copy
     expense_df = df.copy()
 
-    # ---------------------------
+    # ----------------------------
     # CLEAN COLUMN NAMES
-    # ---------------------------
+    # ----------------------------
     expense_df.columns = expense_df.columns.str.strip()
 
-    # ---------------------------
-    # FIX DATE COLUMN
-    # ---------------------------
+    # ----------------------------
+    # FIX DATE COLUMN (HANDLE MIXED FORMATS)
+    # ----------------------------
     expense_df["DATE"] = pd.to_datetime(
-        expense_df["DATE"].astype(str).str.strip(),
-        format="%d-%m-%Y",
-        errors="coerce"
+        expense_df["DATE"],
+        errors="coerce",
+        dayfirst=True,
+        infer_datetime_format=True
     )
 
-    # ---------------------------
-    # FIX FINAL AMOUNT COLUMN
-    # ---------------------------
+    # REMOVE TIME PART (00:00:00)
+    expense_df["DATE"] = expense_df["DATE"].dt.date
+
+    # ----------------------------
+    # FIX FINAL AMOUNT
+    # ----------------------------
     expense_df["FINAL AMOUNT"] = (
         expense_df["FINAL AMOUNT"]
         .astype(str)
@@ -653,25 +656,28 @@ try:
         errors="coerce"
     ).fillna(0)
 
-    # ---------------------------
-    # GET CURRENT MONTH
-    # ---------------------------
-    today = pd.Timestamp.today()
-    current_month = today.month
-    current_year = today.year
+    # ----------------------------
+    # GET CURRENT MONTH RANGE
+    # ----------------------------
+    today = pd.Timestamp.today().date()
+    start_date = today.replace(day=1)
 
-    # ---------------------------
-    # FILTER CURRENT MONTH DATA
-    # ---------------------------
+    # End of month
+    import calendar
+    last_day = calendar.monthrange(today.year, today.month)[1]
+    end_date = today.replace(day=last_day)
+
+    # ----------------------------
+    # FILTER CURRENT MONTH
+    # ----------------------------
     current_month_df = expense_df[
-        (expense_df["DATE"].dt.month == current_month) &
-        (expense_df["DATE"].dt.year == current_year)
+        (expense_df["DATE"] >= start_date) &
+        (expense_df["DATE"] <= end_date)
     ].copy()
 
     if current_month_df.empty:
-        st.warning("No expense data available for current month.")
+        st.warning("⚠ No expense data available for current month.")
     else:
-        # Clean PROJECT_NAME
         current_month_df["PROJECT_NAME"] = (
             current_month_df["PROJECT_NAME"]
             .astype(str)
@@ -679,33 +685,23 @@ try:
             .str.strip()
         )
 
-        # Group project-wise
-        current_summary = (
+        summary = (
             current_month_df
             .groupby("PROJECT_NAME", as_index=False)["FINAL AMOUNT"]
             .sum()
             .sort_values("FINAL AMOUNT", ascending=False)
         )
 
-        total_expense = current_month_df["FINAL AMOUNT"].sum()
+        total = current_month_df["FINAL AMOUNT"].sum()
 
-        # ---------------------------
-        # SHOW TOTAL
-        # ---------------------------
         st.metric(
             label=f"💰 Total Expense - {today.strftime('%B %Y')}",
-            value=f"₹ {total_expense:,.2f}"
+            value=f"₹ {total:,.2f}"
         )
 
-        # ---------------------------
-        # SHOW TABLE
-        # ---------------------------
-        st.dataframe(current_summary, use_container_width=True)
+        st.dataframe(summary, use_container_width=True)
 
-        # ---------------------------
-        # BAR CHART
-        # ---------------------------
-        chart = alt.Chart(current_summary).mark_bar().encode(
+        chart = alt.Chart(summary).mark_bar().encode(
             x=alt.X("PROJECT_NAME:N", sort="-y"),
             y="FINAL AMOUNT:Q",
             tooltip=["PROJECT_NAME", "FINAL AMOUNT"]
@@ -715,5 +711,3 @@ try:
 
 except Exception as e:
     st.error(f"Error generating summary: {e}")
-
-
