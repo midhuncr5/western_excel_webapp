@@ -954,19 +954,92 @@ if submit:
     except Exception as e:
         st.error(f"❌ Save failed: {e}")
 
+# # ---------------------------------------------------
+# # MONTHLY SUMMARY
+# # ---------------------------------------------------
+# st.write("---")
+# st.subheader("📅 Current Month Expense Summary")
+
+# try:
+#     expense_df = download_excel_from_drive()
+
+#     expense_df["DATE"] = pd.to_datetime(
+#         expense_df["DATE"],
+#         errors="coerce",
+#         dayfirst=True
+#     )
+
+#     expense_df["FINAL AMOUNT"] = pd.to_numeric(
+#         expense_df["FINAL AMOUNT"],
+#         errors="coerce"
+#     ).fillna(0)
+
+#     today = pd.Timestamp.today()
+#     current_month = today.month
+#     current_year = today.year
+
+#     current_month_df = expense_df[
+#         (expense_df["DATE"].dt.month == current_month) &
+#         (expense_df["DATE"].dt.year == current_year)
+#     ]
+
+#     if current_month_df.empty:
+#         st.warning("⚠ No expense data for current month.")
+#     else:
+#         summary = (
+#             current_month_df.groupby("PROJECT_NAME")["FINAL AMOUNT"]
+#             .sum()
+#             .reset_index()
+#             .sort_values("FINAL AMOUNT", ascending=False)
+#         )
+
+#         total = current_month_df["FINAL AMOUNT"].sum()
+
+#         st.metric(
+#             label=f"💰 Total Expense - {today.strftime('%B %Y')}",
+#             value=f"₹ {total:,.2f}"
+#         )
+
+#         st.dataframe(summary, use_container_width=True)
+
+#         chart = alt.Chart(summary).mark_bar().encode(
+#             x=alt.X("PROJECT_NAME:N", sort="-y"),
+#             y="FINAL AMOUNT:Q",
+#             tooltip=["PROJECT_NAME", "FINAL AMOUNT"]
+#         ).properties(height=400)
+
+#         st.altair_chart(chart, use_container_width=True)
+
+# except Exception as e:
+#     st.error(f"Error generating summary: {e}")
+
+# st.info("ℹ GitHub is working copy. Google Drive is final source.")
+
 # ---------------------------------------------------
-# MONTHLY SUMMARY
+# MONTHLY SUMMARY (FROM GOOGLE SHEET)
 # ---------------------------------------------------
 st.write("---")
 st.subheader("📅 Current Month Expense Summary")
 
 try:
-    expense_df = download_excel_from_drive()
+    expense_df = download_monthly_sheet()
 
+    expense_df.columns = expense_df.columns.str.strip()
+
+    # Convert DATE
     expense_df["DATE"] = pd.to_datetime(
         expense_df["DATE"],
         errors="coerce",
         dayfirst=True
+    )
+
+    # Clean FINAL AMOUNT
+    expense_df["FINAL AMOUNT"] = (
+        expense_df["FINAL AMOUNT"]
+        .astype(str)
+        .str.replace(",", "", regex=False)
+        .str.replace("₹", "", regex=False)
+        .str.strip()
     )
 
     expense_df["FINAL AMOUNT"] = pd.to_numeric(
@@ -984,12 +1057,12 @@ try:
     ]
 
     if current_month_df.empty:
-        st.warning("⚠ No expense data for current month.")
+        st.warning("⚠ No expense data available for current month.")
     else:
         summary = (
-            current_month_df.groupby("PROJECT_NAME")["FINAL AMOUNT"]
+            current_month_df
+            .groupby("PROJECT_NAME", as_index=False)["FINAL AMOUNT"]
             .sum()
-            .reset_index()
             .sort_values("FINAL AMOUNT", ascending=False)
         )
 
@@ -1012,7 +1085,5 @@ try:
 
 except Exception as e:
     st.error(f"Error generating summary: {e}")
-
-st.info("ℹ GitHub is working copy. Google Drive is final source.")
 
 
