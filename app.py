@@ -323,7 +323,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System..</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>📊 Excel Approval Management System...</h1>", unsafe_allow_html=True)
 st.write("---")
 
 # ---------------------------------------------------
@@ -465,13 +465,28 @@ def upload_excel_to_github(df):
 # ALWAYS LOAD FRESH DATA (NO CACHE)
 # ---------------------------------------------------
 
+# with st.spinner("🔄 Loading latest data from Drive..."):
+#     drive_df = download_excel_from_drive()
+
+#     # Ensure approval columns exist
+#     for col in ["APPROVAL_1", "APPROVAL_2"]:
+#         if col not in drive_df.columns:
+#             drive_df[col] = ""
+
+#     st.session_state.df = drive_df.reset_index(drop=True)
+
+# df = st.session_state.df.copy()
+
+#---newcode
 with st.spinner("🔄 Loading latest data from Drive..."):
     drive_df = download_excel_from_drive()
 
-    # Ensure approval columns exist
+    # Ensure approval columns exist + FIX dtype + handle empty
     for col in ["APPROVAL_1", "APPROVAL_2"]:
         if col not in drive_df.columns:
             drive_df[col] = ""
+
+        drive_df[col] = drive_df[col].fillna("").astype(str)
 
     st.session_state.df = drive_df.reset_index(drop=True)
 
@@ -562,13 +577,44 @@ with st.form("approval_form"):
 # ---------------------------------------------------
 # SAVE LOGIC
 # ---------------------------------------------------
+# if submit:
+#     try:
+#         edited_df.index = df_ui.index
+
+#         for idx, row in edited_df.iterrows():
+#             selected = [s for s in STATUS_COLUMNS if row[s]]
+#             final_status = selected[-1] if selected else ""
+#             df.at[idx, "APPROVAL_1"] = final_status
+#             df.at[idx, "APPROVAL_2"] = final_status
+#             df.at[idx, "BASIC_AMOUNT"] = row["BASIC_AMOUNT"]
+
+#         df_clean = df.drop(columns=STATUS_COLUMNS, errors="ignore")
+
+#         upload_excel_to_github(df_clean)
+#         time.sleep(2)
+#         upload_excel_to_drive(df_clean)
+
+#         st.session_state.df = df_clean.copy()
+#         st.cache_data.clear()
+
+#         st.success("✅ Saved Successfully")
+
+#     except Exception as e:
+#         st.error(f"❌ Save failed: {e}")
+
+#-----------newcode
 if submit:
     try:
         edited_df.index = df_ui.index
 
+        # ✅ FIX: Ensure correct dtype + no NaN
+        df["APPROVAL_1"] = df["APPROVAL_1"].fillna("").astype(str)
+        df["APPROVAL_2"] = df["APPROVAL_2"].fillna("").astype(str)
+
         for idx, row in edited_df.iterrows():
             selected = [s for s in STATUS_COLUMNS if row[s]]
-            final_status = selected[-1] if selected else ""
+            final_status = str(selected[-1]) if selected else ""
+
             df.at[idx, "APPROVAL_1"] = final_status
             df.at[idx, "APPROVAL_2"] = final_status
             df.at[idx, "BASIC_AMOUNT"] = row["BASIC_AMOUNT"]
